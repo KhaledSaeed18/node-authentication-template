@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String @unique
+  password  String
+  role      Role   @default(USER)
+  verificationCode String?
+  codeExpiry DateTime?
+  isVerified Boolean @default(false)
+  resetPasswordCode String?
+  resetPasswordExpiry DateTime?
+
+  totpSecret String?
+  totpEnabled Boolean @default(false)
+
+  LoginHistory LoginHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model LoginHistory {
+  id         String   @id @default(cuid())
+  userId     String
+  ipAddress  String?
+  userAgent  String?
+  device     String?
+  location   String?
+  loginTime  DateTime @default(now())
+  successful Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
