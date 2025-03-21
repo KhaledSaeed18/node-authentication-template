@@ -91,7 +91,7 @@ REDIRECT_URI=
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/yourusername/node-authentication-template.git
+   git clone https://github.com/KhaledSaeed18/node-authentication-template.git
    cd node-authentication-template
    ```
 
