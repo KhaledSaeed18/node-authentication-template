@@ -14,7 +14,7 @@ The Node Authentication Template is a robust, secure, and feature-rich authentic
 [![2FA](https://img.shields.io/badge/2FA-FFA500?style=for-the-badge&logo=authy&logoColor=white)](https://www.npmjs.com/package/speakeasy)
 [![Nodemailer](https://img.shields.io/badge/Nodemailer-0F9DCE?style=for-the-badge&logo=minutemailer&logoColor=white)](https://nodemailer.com/)
 [![Google APIs](https://img.shields.io/badge/Google_APIs-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://www.npmjs.com/package/googleapis)
-[![Zod](https://img.shields.io/badge/Zod-3068b7?style=for-the-badge&logo=typescript&logoColor=white)](https://github.com/colinhacks/zod)
+[![Zod](https://img.shields.io/badge/Zod-3068b7?style=for-the-badge&logo=zod&logoColor=white)](https://github.com/colinhacks/zod)
 [![dotenv](https://img.shields.io/badge/dotenv-ECD53F?style=for-the-badge&logo=dotenv&logoColor=black)](https://www.npmjs.com/package/dotenv)
 [![ESLint](https://img.shields.io/badge/ESLint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white)](https://eslint.org/)
 [![Nodemon](https://img.shields.io/badge/Nodemon-76D04B?style=for-the-badge&logo=nodemon&logoColor=white)](https://nodemon.io/)
