@@ -1,8 +1,23 @@
-# Node Authentication Template
+# 🔐 Node Authentication Template
 
 ## Introduction
 
 The Node Authentication Template is a robust, secure, and feature-rich authentication system built with Node.js and TypeScript. It provides a complete authentication solution with advanced security features including email verification, password reset, two-factor authentication (2FA), rate limiting, and more. This template is designed to be easily integrated into any Node.js project requiring secure user authentication.
+
+[![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Express.js](https://img.shields.io/badge/Express.js-404D59?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)](https://www.prisma.io/)
+[![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=JSON%20web%20tokens&logoColor=white)](https://jwt.io/)
+[![bcrypt](https://img.shields.io/badge/bcrypt-CF1A12?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/bcryptjs)
+[![2FA](https://img.shields.io/badge/2FA-FFA500?style=for-the-badge&logo=authy&logoColor=white)](https://www.npmjs.com/package/speakeasy)
+[![Nodemailer](https://img.shields.io/badge/Nodemailer-0F9DCE?style=for-the-badge&logo=minutemailer&logoColor=white)](https://nodemailer.com/)
+[![Google APIs](https://img.shields.io/badge/Google_APIs-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://www.npmjs.com/package/googleapis)
+[![Zod](https://img.shields.io/badge/Zod-3068b7?style=for-the-badge&logo=typescript&logoColor=white)](https://github.com/colinhacks/zod)
+[![dotenv](https://img.shields.io/badge/dotenv-ECD53F?style=for-the-badge&logo=dotenv&logoColor=black)](https://www.npmjs.com/package/dotenv)
+[![ESLint](https://img.shields.io/badge/ESLint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white)](https://eslint.org/)
+[![Nodemon](https://img.shields.io/badge/Nodemon-76D04B?style=for-the-badge&logo=nodemon&logoColor=white)](https://nodemon.io/)
 
 ## Tech Stack & Dependencies
 
@@ -29,13 +44,13 @@ The Node Authentication Template is a robust, secure, and feature-rich authentic
 - nodemailer: Email sending functionality
 - googleapis: Google OAuth2 integration for email services
 
-**Validation & Parsing:**
+**Validation:**
 
 - zod: Schema validation and type checking
-- dotenv: Environment variable management
 
 **Development Tools:**
 
+- dotenv: Environment variable management
 - eslint: Code linting
 - prisma: ORM and database migration tool
 - nodemon: Automatic server restarts during development
