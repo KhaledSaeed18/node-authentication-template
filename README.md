@@ -56,16 +56,6 @@ The Node Authentication Template is a robust, secure, and feature-rich authentic
 - nodemon: Automatic server restarts during development
 - ts-node: TypeScript execution environment
 
-## Installation & Setup
-
-1. Clone the Repository
-2. Install Dependencies
-3. PostgreSQL & Prisma Setup
-   - Install PostgreSQL: Ensure PostgreSQL is installed and running on your system. You can download it from postgresql.org.
-   - Configure Environment Variables: Create a .env file (see Environment Variables section below).
-   - Apply Database Migrations:
-   - Explore Your Database:
-
 ## Environment Variables
 
 Create a .env file in the root directory with the following variables:
