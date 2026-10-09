@@ -16,6 +16,8 @@ export class PwnedPasswordsChecker implements BreachedPasswordChecker {
     ) {}
 
     async isBreached(password: string): Promise<boolean> {
+        // SHA-1 is what the range API indexes by; it is not how passwords are stored here
+        // (that's Argon2id), and only the first 5 characters are ever sent
         const hash = createHash('sha1').update(password).digest('hex').toUpperCase();
         const prefix = hash.slice(0, 5);
         const suffix = hash.slice(5);
