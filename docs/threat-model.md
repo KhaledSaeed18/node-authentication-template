@@ -93,7 +93,7 @@ A STRIDE analysis of the authentication service. Each threat lists the mitigatio
 ## Residual risks
 
 - **Signup reveals registered emails** (409 on a taken email). A deliberate usability tradeoff, rate limited. Fully closing it needs an "account exists" email instead of an error.
-- **Revocation is not visible to third-party verifiers**: services that verify tokens with the JWKS accept a revoked session's token until it expires (15 minutes by default).
+- **Revocation is not visible to offline verifiers**: services that only verify tokens with the JWKS accept a revoked session's token until it expires (15 minutes by default). Clients that need live status can use token introspection.
 - **Rate limits are per process without Redis.** Multi-instance deployments should set `REDIS_URL`.
 - **Lockout can be triggered by an attacker** to annoy a user for 15 minutes (mitigated by passkeys, but not removed).
 - **`ENCRYPTION_KEY` is a single point of failure** for data at rest, and rotating it is not automated.

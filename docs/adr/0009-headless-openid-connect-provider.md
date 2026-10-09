@@ -24,4 +24,4 @@ With ES256 tokens and a public JWKS ([0006](0006-es256-access-tokens-with-jwks-a
 
 - Any standard client library works; the test suite proves it with `openid-client`, which validates discovery, PKCE, state, nonce, `iss` and the ID token signature.
 - The front end must implement the login handoff (a page that reads `interaction`, signs in, and completes it).
-- Not implemented yet: dynamic client registration, token revocation and introspection endpoints, `prompt=login` / `max_age`, front- or back-channel logout.
+- Token introspection (RFC 7662) and revocation (RFC 7009) were added afterwards. Not implemented yet: dynamic client registration, `prompt=login` / `max_age`, front- or back-channel logout.

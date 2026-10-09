@@ -233,6 +233,8 @@ The service is also an OpenID Connect provider (authorization code flow with PKC
 | `POST /oauth/interactions/:id/complete` | Called by the login page once the user is signed in (`{ consent: true }` for third-party clients) |
 | `POST /oauth/token` | `authorization_code` and `refresh_token` grants |
 | `GET, POST /oauth/userinfo` | Claims for an access token issued to a client |
+| `POST /oauth/introspect` | Is this token still active? (RFC 7662, confidential clients, own tokens only) |
+| `POST /oauth/revoke` | End the session behind one of the client's tokens (RFC 7009) |
 
 The provider is headless, so your front end owns the login page:
 
@@ -260,7 +262,7 @@ const { payload } = await jwtVerify(accessToken, jwks, {
 // payload.sub = user id, payload.role, payload.sid = session id
 ```
 
-Note that only this service checks whether the session was revoked; other services see a revoked session's token as valid until it expires (15 minutes by default).
+Offline verification can't see revocations: a revoked session's token stays valid until it expires (15 minutes by default). When that matters, a client's backend can ask `POST /oauth/introspect` instead.
 
 ### Responses
 

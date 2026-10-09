@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- OpenID Connect token introspection (`/oauth/introspect`, RFC 7662) and revocation (`/oauth/revoke`, RFC 7009).
+
 ## 3.2.0
 
 Account self-service (email change, data export, deletion), breached password screening, and a slimmer API image with a separate migration image.
