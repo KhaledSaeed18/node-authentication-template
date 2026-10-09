@@ -1,7 +1,7 @@
 import { env } from '../../config/env.js';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import type { Mailer } from '../../mail/mailer.js';
-import { passwordResetEmail, securityNoticeEmail, verificationEmail } from '../../mail/templates.js';
+import { emailChangeEmail, passwordResetEmail, securityNoticeEmail, verificationEmail } from '../../mail/templates.js';
 import { TooManyRequestsError } from '../../shared/errors/app-error.js';
 import type { CodePurpose } from '../../generated/prisma/enums.js';
 import type { OutboxHandlers } from '../outbox/outbox.js';
@@ -17,6 +17,11 @@ declare module '../outbox/outbox.js' {
         'email.security-notice': { userId: string; event: string; occurredAt: string; ipAddress: string | null };
         // The user no longer exists when this runs, so the payload carries the address
         'email.account-deleted': { email: string; name: string; occurredAt: string; ipAddress: string | null };
+        // Code to confirm a new address; carries the address it was requested for, since the
+        // user may ask for another one before this runs
+        'email.change-code': { userId: string; newEmail: string };
+        // Heads-up to the previous address after a change
+        'email.address-changed': { oldEmail: string; newEmail: string; name: string; occurredAt: string; ipAddress: string | null };
     }
 }
 
@@ -32,7 +37,12 @@ export const createAuthJobHandlers = ({
     codes,
 }: AuthJobDependencies): Pick<
     OutboxHandlers,
-    'email.verification' | 'email.password-reset' | 'email.security-notice' | 'email.account-deleted'
+    | 'email.verification'
+    | 'email.password-reset'
+    | 'email.security-notice'
+    | 'email.account-deleted'
+    | 'email.change-code'
+    | 'email.address-changed'
 > => {
     // The resend cooldown only applies to the first try; a retry after a failed send
     // must go through, otherwise a mail outage would swallow the email
@@ -69,6 +79,51 @@ export const createAuthJobHandlers = ({
             await mailer.send(
                 user.email,
                 passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
+            );
+        },
+
+        'email.change-code': async ({ userId, newEmail }, { attempt }) => {
+            const user = await db.user.findUnique({ where: { id: userId } });
+            if (!user) return;
+
+            // The address belongs to someone else: tell its owner instead of sending a code,
+            // without telling the requester (no way to probe which addresses are registered)
+            const owner = await db.user.findUnique({ where: { email: newEmail } });
+            if (owner && owner.id !== user.id) {
+                await mailer.send(
+                    owner.email,
+                    securityNoticeEmail({
+                        appName: env.APP_NAME,
+                        name: owner.firstName,
+                        event: 'Someone tried to move another account to this email address; nothing was changed',
+                        time: new Date(),
+                        ipAddress: null,
+                    })
+                );
+                return;
+            }
+
+            // Superseded by a newer request
+            if (user.pendingEmail !== newEmail) return;
+
+            const code = await issueCode(user.id, 'EMAIL_CHANGE', attempt);
+            if (!code) return;
+            await mailer.send(
+                newEmail,
+                emailChangeEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES, newEmail })
+            );
+        },
+
+        'email.address-changed': async ({ oldEmail, newEmail, name, occurredAt, ipAddress }) => {
+            await mailer.send(
+                oldEmail,
+                securityNoticeEmail({
+                    appName: env.APP_NAME,
+                    name,
+                    event: `The email address of your account was changed to ${newEmail}`,
+                    time: new Date(occurredAt),
+                    ipAddress,
+                })
             );
         },
 

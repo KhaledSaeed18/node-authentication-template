@@ -1,4 +1,4 @@
-import type { PrismaClient, User } from '../../generated/prisma/client.js';
+import { Prisma, type PrismaClient, type User } from '../../generated/prisma/client.js';
 import {
     BadRequestError,
     ConflictError,
@@ -19,6 +19,7 @@ import { type PublicUser, toPublicUser } from '../users/users.mapper.js';
 import type {
     ChangePasswordInput,
     DeleteAccountInput,
+    RequestEmailChangeInput,
     PasskeySigninInput,
     RegisterPasskeyInput,
     ResetPasswordInput,
@@ -502,6 +503,59 @@ export class AuthService {
             await tx.recoveryCode.deleteMany({ where: { userId } });
             await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Two-factor authentication was turned off', context));
         });
+    }
+
+    // Step 1 of an email change: re-authenticate, remember the new address and send it a
+    // code. Answers the same whether or not the address is free (the worker handles that).
+    async requestEmailChange(userId: string, { newEmail, password }: RequestEmailChangeInput): Promise<void> {
+        const user = await this.findUserById(userId);
+        if (!(await this.checkPassword(user, password))) {
+            throw new BadRequestError('Password is incorrect', 'INVALID_PASSWORD');
+        }
+        if (newEmail === user.email) {
+            throw new BadRequestError('This is already your email address', 'SAME_EMAIL');
+        }
+
+        await this.db.$transaction(async (tx) => {
+            await tx.user.update({ where: { id: userId }, data: { pendingEmail: newEmail } });
+            await enqueue(tx, 'email.change-code', { userId, newEmail });
+        });
+    }
+
+    // Step 2: the code sent to the new address switches the account over. The old address
+    // is told, and other sessions are signed out.
+    async confirmEmailChange(userId: string, currentSessionId: string, code: string, context?: RequestContext): Promise<string> {
+        const user = await this.findUserById(userId);
+        if (!user.pendingEmail || !(await this.codes.consume(user.id, 'EMAIL_CHANGE', code))) {
+            throw new BadRequestError('Invalid or expired code', 'INVALID_CODE');
+        }
+
+        const newEmail = user.pendingEmail;
+        try {
+            await this.db.$transaction(async (tx) => {
+                await tx.user.update({
+                    where: { id: userId },
+                    data: { email: newEmail, pendingEmail: null, isVerified: true },
+                });
+                await recordSecurityEvent(tx, userId, 'email.changed', context, { from: user.email, to: newEmail });
+                await enqueue(tx, 'email.address-changed', {
+                    oldEmail: user.email,
+                    newEmail,
+                    name: user.firstName,
+                    occurredAt: new Date().toISOString(),
+                    ipAddress: context?.ipAddress ?? null,
+                });
+            });
+        } catch (error) {
+            // Taken by another account between the request and the confirmation
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+                throw new ConflictError('This email address is no longer available', 'EMAIL_TAKEN');
+            }
+            throw error;
+        }
+
+        await this.sessions.revokeAll(userId, currentSessionId);
+        return newEmail;
     }
 
     // Permanently deletes the account and everything linked to it (sessions, passkeys,

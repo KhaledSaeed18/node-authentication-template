@@ -338,3 +338,19 @@ export const securityNoticeEmail = ({ appName, name, event, time, ipAddress }: S
     return { subject: `${appName}: ${event.charAt(0).toLowerCase()}${event.slice(1)}`, html, text };
 };
 
+// Code sent to the new address when a user changes their email
+export const emailChangeEmail = (params: CodeEmailParams & { newEmail: string }): MailContent => ({
+    subject: `Confirm your new email address for ${params.appName}`,
+    html: render(VERIFICATION_EMAIL_TEMPLATE, { ...params }),
+    text: [
+        `Hello ${params.name},`,
+        '',
+        `To use ${params.newEmail} for your ${params.appName} account, enter this code: ${params.code}`,
+        `It expires in ${params.minutes} minutes.`,
+        '',
+        "If you didn't ask for this, you can ignore this email; nothing changes without the code.",
+        '',
+        `${params.appName} Team`,
+    ].join('\n'),
+});
+

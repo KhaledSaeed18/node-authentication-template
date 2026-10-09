@@ -5,6 +5,7 @@ import { type Page, type PaginationQuery, toPage } from '../../shared/validation
 
 export const SECURITY_EVENT_TYPES = [
     'email.verified',
+    'email.changed',
     'password.changed',
     'password.reset',
     'two_factor.enabled',

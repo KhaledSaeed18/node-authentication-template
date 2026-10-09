@@ -189,6 +189,18 @@ export const deleteAccountSchema = z.object({
     code: secondFactorCode.optional(),
 });
 
+export const requestEmailChangeSchema = z.object({
+    newEmail: emailField('Invalid email format').refine(
+        isAllowedDomain,
+        'This email domain is not allowed. Please use a different email address'
+    ),
+    password: z.string().min(1, 'Password is required').max(64),
+});
+
+export const confirmEmailChangeSchema = z.object({
+    code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type SigninInput = z.infer<typeof signinSchema>;
@@ -204,3 +216,4 @@ export type RegenerateRecoveryCodesInput = z.infer<typeof regenerateRecoveryCode
 export type RegisterPasskeyInput = z.infer<typeof registerPasskeySchema>;
 export type PasskeySigninInput = z.infer<typeof passkeySigninSchema>;
 export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;
+export type RequestEmailChangeInput = z.infer<typeof requestEmailChangeSchema>;

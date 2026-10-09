@@ -20,6 +20,20 @@ export class UsersController {
         res.json(data);
     };
 
+    requestEmailChange = async (req: Request, res: Response) => {
+        await this.authService.requestEmailChange(currentUser(req).userId, req.body);
+        sendSuccess(res, 200, 'If the address can be used, a confirmation code has been sent to it');
+    };
+
+    confirmEmailChange = async (req: Request, res: Response) => {
+        const { userId, sessionId } = currentUser(req);
+        const email = await this.authService.confirmEmailChange(userId, sessionId, req.body.code, {
+            ipAddress: req.ip ?? null,
+            userAgent: req.get('user-agent') ?? null,
+        });
+        sendSuccess(res, 200, 'Email address changed. Other sessions have been signed out.', { email });
+    };
+
     deleteMe = async (req: Request, res: Response) => {
         await this.authService.deleteAccount(currentUser(req).userId, req.body, {
             ipAddress: req.ip ?? null,

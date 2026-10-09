@@ -11,13 +11,15 @@ datasource db {
 }
 
 model User {
-  id         String  @id @default(cuid())
-  firstName  String
-  lastName   String
-  email      String  @unique
-  password   String
-  role       Role    @default(USER)
-  isVerified Boolean @default(false)
+  id           String  @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String  @unique
+  password     String
+  role         Role    @default(USER)
+  isVerified   Boolean @default(false)
+  // New address waiting to be confirmed with an EMAIL_CHANGE code
+  pendingEmail String?
 
   // Encrypted with AES-256-GCM (see shared/utils/crypto.ts)
   totpSecret       String?
@@ -65,6 +67,7 @@ model LoginHistory {
 enum CodePurpose {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  EMAIL_CHANGE
 }
 
 // Short-lived one-time codes sent by email. Only an HMAC of the code is stored.
