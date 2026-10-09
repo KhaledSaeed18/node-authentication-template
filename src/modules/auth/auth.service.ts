@@ -12,7 +12,7 @@ import {
     UnauthorizedError,
 } from '../../shared/errors/app-error.js';
 import { logger } from '../../lib/logger.js';
-import { hashPassword, verifyPassword } from '../../shared/utils/password.js';
+import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
 import type {
     ResetPasswordInput,
     Signin2FAInput,
@@ -53,6 +53,9 @@ const detectDevice = (userAgent: string | null): string => {
     return 'Desktop';
 };
 
+const MAX_FAILED_SIGNINS = 5;
+const LOCKOUT_MINUTES = 15;
+
 const invalidCredentials = () => new UnauthorizedError('Invalid email or password', 'INVALID_CREDENTIALS');
 const notVerified = () =>
     new ForbiddenError('Account not verified. Please verify your email address.', 'EMAIL_NOT_VERIFIED');
@@ -79,6 +82,28 @@ export class AuthService {
             if (error instanceof TooManyRequestsError) return;
             logger.error({ err: error }, `Background task failed: ${task}`);
         });
+    }
+
+    // Temporary lock after too many failed signins since the last successful one,
+    // which per-IP rate limits can't catch when an attacker spreads requests
+    private async assertNotLocked(userId: string) {
+        const windowStart = new Date(Date.now() - LOCKOUT_MINUTES * 60 * 1000);
+        const lastSuccess = await this.db.loginHistory.findFirst({
+            where: { userId, successful: true, loginTime: { gt: windowStart } },
+            orderBy: { loginTime: 'desc' },
+            select: { loginTime: true },
+        });
+
+        const failures = await this.db.loginHistory.count({
+            where: { userId, successful: false, loginTime: { gt: lastSuccess?.loginTime ?? windowStart } },
+        });
+
+        if (failures >= MAX_FAILED_SIGNINS) {
+            throw new TooManyRequestsError(
+                `Too many failed sign-in attempts. Please try again in ${LOCKOUT_MINUTES} minutes.`,
+                'ACCOUNT_LOCKED'
+            );
+        }
     }
 
     // Verifies the password and upgrades the stored hash if it uses older settings
@@ -138,7 +163,12 @@ export class AuthService {
 
     async signin({ email, password }: SigninInput, context: RequestContext): Promise<SigninResult> {
         const user = await this.db.user.findUnique({ where: { email } });
-        if (!user) throw invalidCredentials();
+        if (!user) {
+            await verifyAgainstDummy(password);
+            throw invalidCredentials();
+        }
+
+        await this.assertNotLocked(user.id);
 
         if (!(await this.checkPassword(user, password))) {
             await this.recordLoginAttempt(user.id, context, false);
@@ -266,7 +296,12 @@ export class AuthService {
 
     async signin2FA({ email, password, token }: Signin2FAInput, context: RequestContext) {
         const user = await this.db.user.findUnique({ where: { email } });
-        if (!user) throw invalidCredentials();
+        if (!user) {
+            await verifyAgainstDummy(password);
+            throw invalidCredentials();
+        }
+
+        await this.assertNotLocked(user.id);
 
         if (!(await this.checkPassword(user, password))) {
             await this.recordLoginAttempt(user.id, context, false);

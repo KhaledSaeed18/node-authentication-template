@@ -29,3 +29,12 @@ export const verifyPassword = async (
         params.parallelism !== ARGON2_OPTIONS.parallelism;
     return { valid, needsRehash: outdated };
 };
+
+// Hash of a random password, checked when the account doesn't exist so a
+// missing email takes as long to reject as a wrong password
+let dummyHash: Promise<string> | undefined;
+
+export const verifyAgainstDummy = async (password: string): Promise<void> => {
+    dummyHash ??= hashPassword(crypto.randomUUID());
+    await verifyPassword(await dummyHash, password);
+};
