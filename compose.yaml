@@ -16,6 +16,17 @@ services:
       timeout: 5s
       retries: 10
 
+  # Shared rate limit counters (lets you run several api instances)
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Catches every email sent in development, UI on http://localhost:8025
   mailpit:
     image: axllent/mailpit
@@ -47,12 +58,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (at least 32 characters)}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY (openssl rand -base64 32)}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      REDIS_URL: redis://redis:6379
       MAIL_TRANSPORT: smtp
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
       mailpit:
         condition: service_started
 

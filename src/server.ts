@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
+import { redis } from './lib/redis.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -33,7 +34,7 @@ const shutdown = (signal: NodeJS.Signals) => {
 
     server.close(async (error) => {
         if (error) logger.error({ err: error }, 'Error while closing the HTTP server');
-        await prisma.$disconnect();
+        await Promise.allSettled([prisma.$disconnect(), redis?.close()]);
         logger.info('Shutdown complete');
         process.exit(error ? 1 : 0);
     });

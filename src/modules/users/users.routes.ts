@@ -9,7 +9,7 @@ import { updateProfileSchema } from './users.schemas.js';
 export const createUsersRouter = (controller: UsersController, authenticate: RequestHandler): Router => {
     const router = Router();
 
-    router.use(createLimiter(100), authenticate);
+    router.use(createLimiter('users', 100), authenticate);
 
     router.get('/me', controller.getMe);
     router.patch('/me', validate(updateProfileSchema), controller.updateMe);

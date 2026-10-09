@@ -29,6 +29,8 @@ const envSchema = z.object({
 
     CORS_ORIGINS: csv.default(['http://localhost:3000']),
     RATE_LIMIT_ENABLED: z.stringbool().default(true),
+    // Optional. When set, rate limit counters are shared by all instances through Redis
+    REDIS_URL: z.url().optional(),
     // Express "trust proxy" setting: false, true, a hop count, or a list of IPs/subnets
     TRUST_PROXY: z
         .string()
