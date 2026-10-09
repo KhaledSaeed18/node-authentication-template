@@ -9,6 +9,7 @@ export interface CleanupResult {
     outboxMessages: number;
     webauthnChallenges: number;
     signingKeys: number;
+    securityEvents: number;
 }
 
 // Delivered jobs are only kept briefly; failed ones longer, so they can be inspected
@@ -22,12 +23,14 @@ export const cleanupExpiredData = async (
     {
         loginHistoryRetentionDays,
         retiredSigningKeyRetentionMs,
-    }: { loginHistoryRetentionDays: number; retiredSigningKeyRetentionMs: number },
+        securityEventRetentionDays = 365,
+    }: { loginHistoryRetentionDays: number; retiredSigningKeyRetentionMs: number; securityEventRetentionDays?: number },
     now = new Date()
 ): Promise<CleanupResult> => {
     const daysAgo = (days: number) => new Date(now.getTime() - days * DAY_MS);
 
-    const [sessions, verificationCodes, loginHistory, outboxMessages, webauthnChallenges, signingKeys] = await Promise.all([
+    const [sessions, verificationCodes, loginHistory, outboxMessages, webauthnChallenges, signingKeys, securityEvents] =
+        await Promise.all([
         db.session.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { not: null } }] } }),
         db.verificationCode.deleteMany({ where: { expiresAt: { lt: now } } }),
         db.loginHistory.deleteMany({
@@ -44,6 +47,7 @@ export const cleanupExpiredData = async (
         db.webAuthnChallenge.deleteMany({ where: { expiresAt: { lt: now } } }),
         // Retired keys no longer published (every token they signed has expired)
         db.signingKey.deleteMany({ where: { retiredAt: { lt: new Date(now.getTime() - retiredSigningKeyRetentionMs) } } }),
+        db.securityEvent.deleteMany({ where: { createdAt: { lt: daysAgo(securityEventRetentionDays) } } }),
     ]);
 
     return {
@@ -53,5 +57,6 @@ export const cleanupExpiredData = async (
         outboxMessages: outboxMessages.count,
         webauthnChallenges: webauthnChallenges.count,
         signingKeys: signingKeys.count,
+        securityEvents: securityEvents.count,
     };
 };

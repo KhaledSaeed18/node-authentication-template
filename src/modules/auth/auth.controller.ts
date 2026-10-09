@@ -36,7 +36,7 @@ export class AuthController {
     };
 
     logoutAll = async (req: Request, res: Response) => {
-        const count = await this.authService.logoutAll(currentUser(req).userId);
+        const count = await this.authService.logoutAll(currentUser(req).userId, requestContext(req));
         sendSuccess(res, 200, 'Signed out of all sessions', { revokedSessions: count });
     };
 
@@ -47,7 +47,7 @@ export class AuthController {
     };
 
     revokeSession = async (req: Request, res: Response) => {
-        await this.authService.revokeSession(currentUser(req).userId, String(req.params.sessionId));
+        await this.authService.revokeSession(currentUser(req).userId, String(req.params.sessionId), requestContext(req));
         sendSuccess(res, 200, 'Session revoked successfully');
     };
 
@@ -57,7 +57,7 @@ export class AuthController {
     };
 
     refreshAccessToken = async (req: Request, res: Response) => {
-        const tokens = await this.authService.refresh(req.body.refreshToken);
+        const tokens = await this.authService.refresh(req.body.refreshToken, requestContext(req));
         sendSuccess(res, 200, 'Tokens refreshed successfully', tokens);
     };
 

@@ -1,4 +1,5 @@
-import type { Prisma, PrismaClient } from '../../generated/prisma/client.js';
+import type { Prisma } from '../../generated/prisma/client.js';
+import type { DbClient } from '../../lib/prisma.js';
 
 // Job types and their payloads. Modules add their own jobs through declaration
 // merging, which keeps enqueue() and the handlers type-checked end to end:
@@ -20,10 +21,7 @@ export type OutboxHandlers = {
     [K in OutboxJobType]: (payload: OutboxJobs[K], context: JobContext) => Promise<void>;
 };
 
-// Accepts the regular client or the one inside $transaction(), so a job can be
-// written in the same transaction as the change it belongs to
-type DbClient = PrismaClient | Prisma.TransactionClient;
-
+// Pass the transaction client to write the job in the same transaction as the change
 export const enqueue = async <T extends OutboxJobType>(
     db: DbClient,
     type: T,

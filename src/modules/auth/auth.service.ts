@@ -8,7 +8,8 @@ import {
     UnauthorizedError,
 } from '../../shared/errors/app-error.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
-import { detectDevice } from '../../shared/utils/user-agent.js';
+import { describeUserAgent, detectDevice } from '../../shared/utils/user-agent.js';
+import { recordSecurityEvent } from '../audit/security-events.js';
 import { type PaginationQuery, toPage } from '../../shared/validation/pagination.js';
 import { enqueue, type OutboxJobs } from '../outbox/outbox.js';
 import { type PublicUser, toPublicUser } from '../users/users.mapper.js';
@@ -41,7 +42,11 @@ export type SigninResult =
     | { requiresTwoFactor: false; user: PublicUser; accessToken: string; refreshToken: string };
 
 const MAX_FAILED_SIGNINS = 5;
+// Never matches a real user; used to give unknown emails the same lockout queries
+const UNKNOWN_USER_ID = '00000000-unknown-user';
 const LOCKOUT_MINUTES = 15;
+// How far back sign-ins count when deciding whether a device is new
+const KNOWN_DEVICE_DAYS = 90;
 
 const invalidCredentials = () => new UnauthorizedError('Invalid email or password', 'INVALID_CREDENTIALS');
 const notVerified = () =>
@@ -58,9 +63,8 @@ export class AuthService {
         private readonly accessTokens: AccessTokens
     ) {}
 
-    // Temporary lock after too many failed signins since the last successful one,
-    // which per-IP rate limits can't catch when an attacker spreads requests
-    private async assertNotLocked(userId: string) {
+    // Failed sign-ins within the lockout window, counted since the last successful one
+    private async recentFailures(userId: string): Promise<number> {
         const windowStart = new Date(Date.now() - LOCKOUT_MINUTES * 60 * 1000);
         const lastSuccess = await this.db.loginHistory.findFirst({
             where: { userId, successful: true, loginTime: { gt: windowStart } },
@@ -68,16 +72,23 @@ export class AuthService {
             select: { loginTime: true },
         });
 
-        const failures = await this.db.loginHistory.count({
+        return this.db.loginHistory.count({
             where: { userId, successful: false, loginTime: { gt: lastSuccess?.loginTime ?? windowStart } },
         });
+    }
 
+    // Temporary lock after too many failed signins since the last successful one,
+    // which per-IP rate limits can't catch when an attacker spreads requests
+    // Returns the current failure count so callers don't have to query it again
+    private async assertNotLocked(userId: string): Promise<number> {
+        const failures = await this.recentFailures(userId);
         if (failures >= MAX_FAILED_SIGNINS) {
             throw new TooManyRequestsError(
                 `Too many failed sign-in attempts. Please try again in ${LOCKOUT_MINUTES} minutes.`,
                 'ACCOUNT_LOCKED'
             );
         }
+        return failures;
     }
 
     // Checks a TOTP code and records its time step so the same code can't be used again.
@@ -97,9 +108,22 @@ export class AuthService {
         return count === 1;
     }
 
-    // Accepts a 6 digit authenticator code or an unused recovery code
-    private async checkSecondFactor(user: User, code: string): Promise<boolean> {
-        return /^\d{6}$/.test(code) ? this.checkTOTP(user, code) : this.recoveryCodes.consume(user.id, code);
+    // Accepts a 6 digit authenticator code or an unused recovery code. Using a recovery
+    // code is logged and reported, since it often means the authenticator was lost.
+    private async checkSecondFactor(user: User, code: string, context?: RequestContext): Promise<boolean> {
+        if (/^\d{6}$/.test(code)) return this.checkTOTP(user, code);
+        if (!(await this.recoveryCodes.consume(user.id, code))) return false;
+
+        const remaining = await this.recoveryCodes.remaining(user.id);
+        await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, user.id, 'recovery_code.used', context, { remaining });
+            await enqueue(
+                tx,
+                'email.security-notice',
+                this.securityNotice(user, `A recovery code was used (${remaining} left)`, context)
+            );
+        });
+        return true;
     }
 
     // Verifies the password and upgrades the stored hash if it uses older settings
@@ -114,6 +138,57 @@ export class AuthService {
     // Security notice for the owner, enqueued in the same transaction as the change it reports
     private securityNotice(user: User, event: string, context?: RequestContext): OutboxJobs['email.security-notice'] {
         return { userId: user.id, event, occurredAt: new Date().toISOString(), ipAddress: context?.ipAddress ?? null };
+    }
+
+    // The failed attempt that reaches the limit locks the account; that is logged and the
+    // owner is told, since it usually means someone is guessing their password
+    // previousFailures comes from assertNotLocked, which avoids another round trip on this
+    // path (its timing has to stay close to the unknown-email path)
+    private async registerFailedSignin(user: User, context: RequestContext, previousFailures: number) {
+        await this.recordLoginAttempt(user.id, context, false);
+        if (previousFailures + 1 !== MAX_FAILED_SIGNINS) return;
+
+        await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, user.id, 'account.locked', context, { failedAttempts: MAX_FAILED_SIGNINS });
+            await enqueue(
+                tx,
+                'email.security-notice',
+                this.securityNotice(
+                    user,
+                    `Your account was locked for ${LOCKOUT_MINUTES} minutes after ${MAX_FAILED_SIGNINS} failed sign-in attempts`,
+                    context
+                )
+            );
+        });
+    }
+
+    // Lets the owner know when a sign-in comes from a browser/OS combination the account
+    // hasn't used recently. Compares families, so browser updates don't trigger it.
+    private async alertIfNewDevice(user: User, context: RequestContext) {
+        const since = new Date(Date.now() - KNOWN_DEVICE_DAYS * 24 * 60 * 60 * 1000);
+        const known = await this.db.loginHistory.findMany({
+            where: { userId: user.id, successful: true, loginTime: { gt: since } },
+            select: { userAgent: true },
+            distinct: ['userAgent'],
+            take: 100,
+        });
+        // First sign-in: nothing to compare with
+        if (known.length === 0) return;
+
+        const device = describeUserAgent(context.userAgent);
+        if (known.some((row) => describeUserAgent(row.userAgent).fingerprint === device.fingerprint)) return;
+
+        await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, user.id, 'signin.new_device', context, { device: device.label });
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, `New sign-in from ${device.label}`, context));
+        });
+    }
+
+    // Every successful sign-in (password, 2FA, passkey) ends here
+    private async completeSignin(user: User, context: RequestContext) {
+        await this.alertIfNewDevice(user, context);
+        await this.recordLoginAttempt(user.id, context, true);
+        return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
     }
 
     private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
@@ -166,14 +241,17 @@ export class AuthService {
     async signin({ email, password }: SigninInput, context: RequestContext): Promise<SigninResult> {
         const user = await this.db.user.findUnique({ where: { email } });
         if (!user) {
+            // Same work as for a real account (lockout lookup and a password hash check),
+            // so response times don't reveal whether the email is registered
+            await this.recentFailures(UNKNOWN_USER_ID);
             await verifyAgainstDummy(password);
             throw invalidCredentials();
         }
 
-        await this.assertNotLocked(user.id);
+        const failures = await this.assertNotLocked(user.id);
 
         if (!(await this.checkPassword(user, password))) {
-            await this.recordLoginAttempt(user.id, context, false);
+            await this.registerFailedSignin(user, context, failures);
             throw invalidCredentials();
         }
 
@@ -184,17 +262,17 @@ export class AuthService {
             return { requiresTwoFactor: true, mfaToken: signMfaToken(user.id) };
         }
 
-        await this.recordLoginAttempt(user.id, context, true);
-
-        return { requiresTwoFactor: false, user: toPublicUser(user), ...(await this.startSession(user, context)) };
+        return { requiresTwoFactor: false, ...(await this.completeSignin(user, context)) };
     }
 
     async logout(sessionId: string): Promise<void> {
         await this.sessions.revoke(sessionId);
     }
 
-    async logoutAll(userId: string): Promise<number> {
-        return this.sessions.revokeAll(userId);
+    async logoutAll(userId: string, context?: RequestContext): Promise<number> {
+        const count = await this.sessions.revokeAll(userId);
+        await recordSecurityEvent(this.db, userId, 'sessions.revoked_all', context, { count });
+        return count;
     }
 
     async listSessions(userId: string, currentSessionId: string) {
@@ -202,10 +280,11 @@ export class AuthService {
         return sessions.map((session) => ({ ...session, current: session.id === currentSessionId }));
     }
 
-    async revokeSession(userId: string, sessionId: string): Promise<void> {
+    async revokeSession(userId: string, sessionId: string, context?: RequestContext): Promise<void> {
         if (!(await this.sessions.revoke(sessionId, userId))) {
             throw new NotFoundError('Session not found', 'SESSION_NOT_FOUND');
         }
+        await recordSecurityEvent(this.db, userId, 'session.revoked', context, { sessionId });
     }
 
     // Newest first, cursor based so deep pages stay fast
@@ -221,8 +300,8 @@ export class AuthService {
     }
 
     // Rotates the refresh token and issues a new access token with the user's current role
-    async refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
-        const { session, refreshToken: nextRefreshToken } = await this.sessions.rotate(refreshToken);
+    async refresh(refreshToken: string, context?: RequestContext): Promise<{ accessToken: string; refreshToken: string }> {
+        const { session, refreshToken: nextRefreshToken } = await this.sessions.rotate(refreshToken, context);
         return {
             accessToken: await this.accessTokens.sign({ userId: session.userId, role: session.user.role, sessionId: session.id }),
             refreshToken: nextRefreshToken,
@@ -238,9 +317,9 @@ export class AuthService {
             throw new BadRequestError('Invalid or expired verification code', 'INVALID_CODE');
         }
 
-        const verifiedUser = await this.db.user.update({
-            where: { id: user.id },
-            data: { isVerified: true },
+        const verifiedUser = await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, user.id, 'email.verified');
+            return tx.user.update({ where: { id: user.id }, data: { isVerified: true } });
         });
 
         return toPublicUser(verifiedUser);
@@ -267,6 +346,7 @@ export class AuthService {
         const passwordHash = await hashPassword(newPassword);
         await this.db.$transaction(async (tx) => {
             await tx.user.update({ where: { id: user.id }, data: { password: passwordHash } });
+            await recordSecurityEvent(tx, user.id, 'password.reset', context);
             await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Your password was reset', context));
         });
 
@@ -290,6 +370,7 @@ export class AuthService {
         const passwordHash = await hashPassword(newPassword);
         await this.db.$transaction(async (tx) => {
             await tx.user.update({ where: { id: userId }, data: { password: passwordHash } });
+            await recordSecurityEvent(tx, userId, 'password.changed', context);
             await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Your password was changed', context));
         });
         await this.sessions.revokeAll(userId, currentSessionId);
@@ -328,6 +409,7 @@ export class AuthService {
 
         await this.db.$transaction(async (tx) => {
             await tx.user.update({ where: { id: userId }, data: { totpEnabled: true } });
+            await recordSecurityEvent(tx, userId, 'two_factor.enabled', context);
             await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Two-factor authentication was turned on', context));
         });
 
@@ -340,12 +422,15 @@ export class AuthService {
         if (!user.totpEnabled) {
             throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
         }
-        if (!(await this.checkSecondFactor(user, code))) {
+        if (!(await this.checkSecondFactor(user, code, context))) {
             throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
         const recoveryCodes = await this.recoveryCodes.regenerate(userId);
-        await enqueue(this.db, 'email.security-notice', this.securityNotice(user, 'New 2FA recovery codes were generated', context));
+        await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, userId, 'recovery_codes.regenerated', context);
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'New 2FA recovery codes were generated', context));
+        });
         return { recoveryCodes };
     }
 
@@ -357,16 +442,14 @@ export class AuthService {
             throw new UnauthorizedError('Two-factor session expired, please sign in again', 'INVALID_MFA_TOKEN');
         }
 
-        await this.assertNotLocked(user.id);
+        const failures = await this.assertNotLocked(user.id);
 
-        if (!(await this.checkSecondFactor(user, code))) {
-            await this.recordLoginAttempt(user.id, context, false);
+        if (!(await this.checkSecondFactor(user, code, context))) {
+            await this.registerFailedSignin(user, context, failures);
             throw new UnauthorizedError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
-        await this.recordLoginAttempt(user.id, context, true);
-
-        return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
+        return this.completeSignin(user, context);
     }
 
     async disable2FA(userId: string, code: string, context?: RequestContext): Promise<void> {
@@ -374,11 +457,12 @@ export class AuthService {
         if (!user.totpEnabled || !user.totpSecret) {
             throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
         }
-        if (!(await this.checkSecondFactor(user, code))) {
+        if (!(await this.checkSecondFactor(user, code, context))) {
             throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
         await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, userId, 'two_factor.disabled', context);
             await tx.user.update({
                 where: { id: userId },
                 data: { totpSecret: null, totpEnabled: false, totpLastUsedStep: null },
@@ -395,7 +479,10 @@ export class AuthService {
     async registerPasskey(userId: string, { response, name }: RegisterPasskeyInput, context?: RequestContext): Promise<PublicPasskey> {
         const user = await this.findUserById(userId);
         const passkey = await this.passkeys.register(userId, response as Parameters<PasskeyService['register']>[1], name);
-        await enqueue(this.db, 'email.security-notice', this.securityNotice(user, `A passkey named "${name}" was added`, context));
+        await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, userId, 'passkey.added', context, { name });
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, `A passkey named "${name}" was added`, context));
+        });
         return passkey;
     }
 
@@ -411,8 +498,7 @@ export class AuthService {
         const user = await this.passkeys.authenticate(response as Parameters<PasskeyService['authenticate']>[0]);
         if (!user.isVerified) throw notVerified();
 
-        await this.recordLoginAttempt(user.id, context, true);
-        return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
+        return this.completeSignin(user, context);
     }
 
     async listPasskeys(userId: string): Promise<PublicPasskey[]> {
@@ -426,6 +512,9 @@ export class AuthService {
     async removePasskey(userId: string, passkeyId: string, context?: RequestContext): Promise<void> {
         const user = await this.findUserById(userId);
         await this.passkeys.remove(userId, passkeyId);
-        await enqueue(this.db, 'email.security-notice', this.securityNotice(user, 'A passkey was removed', context));
+        await this.db.$transaction(async (tx) => {
+            await recordSecurityEvent(tx, userId, 'passkey.removed', context);
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'A passkey was removed', context));
+        });
     }
 }

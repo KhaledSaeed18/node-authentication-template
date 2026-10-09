@@ -61,6 +61,13 @@ describe('cleanupExpiredData', () => {
             ],
         });
 
+        await prisma.securityEvent.createMany({
+            data: [
+                { userId, type: 'password.changed', createdAt: ago(400 * DAY) },
+                { userId, type: 'password.changed', createdAt: ago(30 * DAY) },
+            ],
+        });
+
         const result = await cleanupExpiredData(prisma, { loginHistoryRetentionDays: 90, retiredSigningKeyRetentionMs: 20 * 60 * 1000 });
 
         expect(result).toEqual({
@@ -70,6 +77,7 @@ describe('cleanupExpiredData', () => {
             outboxMessages: 2,
             webauthnChallenges: 1,
             signingKeys: 1,
+            securityEvents: 1,
         });
         expect((await prisma.signingKey.findMany()).map((k) => k.id).sort()).toEqual(['active', 'recently-retired']);
         // Pending jobs are never removed, however old

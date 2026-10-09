@@ -31,6 +31,7 @@ model User {
   recoveryCodes      RecoveryCode[]
   passkeys           Passkey[]
   webauthnChallenges WebAuthnChallenge[]
+  securityEvents     SecurityEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -189,4 +190,20 @@ model SigningKey {
   createdAt  DateTime  @default(now())
   // Set when a newer key takes over; the key stays published until its tokens expire
   retiredAt  DateTime?
+}
+
+// Append-only log of security-relevant account events, shown to users as their account
+// activity (sign-in attempts themselves are in LoginHistory)
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
 }

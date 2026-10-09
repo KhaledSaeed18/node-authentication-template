@@ -20,7 +20,7 @@ import {
     verify2FASchema,
     verifyEmailSchema,
 } from '../modules/auth/auth.schemas.js';
-import { updateProfileSchema } from '../modules/users/users.schemas.js';
+import { updateProfileSchema, userIdParamsSchema } from '../modules/users/users.schemas.js';
 import { paginationQuerySchema } from '../shared/validation/pagination.js';
 
 // Request schemas come straight from the validation layer, so the docs can't drift from it
@@ -81,6 +81,19 @@ const passkey = z
 const webauthnOptions = z
     .looseObject({ challenge: z.string() })
     .meta({ description: 'Pass to navigator.credentials (e.g. with @simplewebauthn/browser)' });
+
+const securityEvent = z
+    .object({
+        id: z.string(),
+        type: z.string().meta({ description: 'e.g. password.changed, passkey.added, signin.new_device, account.locked' }),
+        ipAddress: z.string().nullable(),
+        device: z.string().meta({ description: 'e.g. "Chrome on macOS"' }),
+        metadata: z.record(z.string(), z.unknown()).nullable(),
+        createdAt: z.iso.datetime(),
+    })
+    .meta({ id: 'SecurityEvent' });
+
+const activityPage = z.object({ events: z.array(securityEvent), nextCursor: z.string().nullable() });
 
 const recoveryCodes = z.object({
     recoveryCodes: z.array(z.string()).meta({ description: 'Shown only once, store them somewhere safe' }),
@@ -371,6 +384,24 @@ const paths: ZodOpenApiPathsObject = {
             summary: 'Update first and/or last name',
             requestBody: json(updateProfileSchema),
             responses: { '200': success('Updated profile', z.object({ user })) },
+        }),
+    },
+    '/users/me/activity': {
+        get: operation({
+            ...authenticated,
+            tags: ['Users'],
+            summary: 'Security-relevant activity on your account, newest first',
+            requestParams: { query: paginationQuerySchema },
+            responses: { '200': success('A page of events', activityPage) },
+        }),
+    },
+    '/users/{userId}/activity': {
+        get: operation({
+            ...authenticated,
+            tags: ['Users'],
+            summary: "A user's account activity (ADMIN only)",
+            requestParams: { path: userIdParamsSchema, query: paginationQuerySchema },
+            responses: { '200': success('A page of events', activityPage), '403': error('Not an admin'), '404': error('User not found') },
         }),
     },
     '/users': {

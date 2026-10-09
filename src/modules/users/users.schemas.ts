@@ -10,4 +10,8 @@ export const updateProfileSchema = z
         message: 'Provide at least one field to update',
     });
 
+export const userIdParamsSchema = z.object({
+    userId: z.string().trim().min(1).max(64),
+});
+
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

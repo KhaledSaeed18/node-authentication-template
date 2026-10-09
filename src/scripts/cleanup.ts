@@ -10,6 +10,7 @@ import { durationToMs } from '../shared/utils/duration.js';
 try {
     const deleted = await cleanupExpiredData(prisma, {
         loginHistoryRetentionDays: env.LOGIN_HISTORY_RETENTION_DAYS,
+        securityEventRetentionDays: env.SECURITY_EVENT_RETENTION_DAYS,
         retiredSigningKeyRetentionMs: durationToMs(env.ACCESS_TOKEN_TTL) + 5 * 60 * 1000,
     });
     logger.info({ deleted }, 'Cleanup finished');

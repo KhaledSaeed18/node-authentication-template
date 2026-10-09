@@ -51,6 +51,8 @@ const envSchema = z.object({
     APP_NAME: z.string().default('Node Auth'),
     // How long login history is kept by the cleanup job
     LOGIN_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
+    // How long the account activity (security events) is kept
+    SECURITY_EVENT_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
     // Run the outbox worker inside the API process. Turn off when running dedicated
     // workers (node dist/scripts/worker.js) or in tests, which drain the outbox themselves.
     OUTBOX_WORKER_ENABLED: z.stringbool().default(true),

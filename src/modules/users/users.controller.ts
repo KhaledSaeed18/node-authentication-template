@@ -2,10 +2,14 @@ import type { Request, Response } from 'express';
 import { currentUser } from '../../shared/middlewares/authenticate.js';
 import { sendSuccess } from '../../shared/utils/response.js';
 import type { PaginationQuery } from '../../shared/validation/pagination.js';
+import type { SecurityEventsService } from '../audit/security-events.js';
 import type { UsersService } from './users.service.js';
 
 export class UsersController {
-    constructor(private readonly usersService: UsersService) {}
+    constructor(
+        private readonly usersService: UsersService,
+        private readonly securityEvents: SecurityEventsService
+    ) {}
 
     getMe = async (req: Request, res: Response) => {
         const user = await this.usersService.getProfile(currentUser(req).userId);
@@ -15,6 +19,18 @@ export class UsersController {
     updateMe = async (req: Request, res: Response) => {
         const user = await this.usersService.updateProfile(currentUser(req).userId, req.body);
         sendSuccess(res, 200, 'Profile updated successfully', { user });
+    };
+
+    myActivity = async (req: Request, res: Response) => {
+        const page = await this.securityEvents.list(currentUser(req).userId, req.query as unknown as PaginationQuery);
+        sendSuccess(res, 200, 'Account activity fetched successfully', { events: page.items, nextCursor: page.nextCursor });
+    };
+
+    userActivity = async (req: Request, res: Response) => {
+        const userId = String(req.params.userId);
+        await this.usersService.getProfile(userId); // 404 for unknown users
+        const page = await this.securityEvents.list(userId, req.query as unknown as PaginationQuery);
+        sendSuccess(res, 200, 'Account activity fetched successfully', { events: page.items, nextCursor: page.nextCursor });
     };
 
     list = async (req: Request, res: Response) => {

@@ -5,6 +5,9 @@ import { UnauthorizedError } from '../../shared/errors/app-error.js';
 import { randomToken, safeEqual, sha256 } from '../../shared/utils/crypto.js';
 import { durationToMs } from '../../shared/utils/duration.js';
 import type { RequestContext } from './auth.service.js';
+import { recordSecurityEvent } from '../audit/security-events.js';
+import { enqueue } from '../outbox/outbox.js';
+import './auth.jobs.js';
 
 // Two tabs refreshing at the same time is not an attack; within this window a
 // just-rotated token is rejected without revoking the session
@@ -50,7 +53,7 @@ export class SessionService {
 
     // Exchanges a refresh token for a new one. Presenting an already rotated token
     // means it leaked, so the whole session is revoked.
-    async rotate(refreshToken: string): Promise<{ session: Session & { user: User }; refreshToken: string }> {
+    async rotate(refreshToken: string, context?: RequestContext): Promise<{ session: Session & { user: User }; refreshToken: string }> {
         const parsed = parseToken(refreshToken);
         if (!parsed) throw invalidToken();
 
@@ -86,6 +89,15 @@ export class SessionService {
 
             await this.revoke(session.id);
             logger.warn({ sessionId: session.id, userId: session.userId }, 'Refresh token reuse detected, session revoked');
+            await this.db.$transaction(async (tx) => {
+                await recordSecurityEvent(tx, session.userId, 'refresh_token.reuse_detected', context, { sessionId: session.id });
+                await enqueue(tx, 'email.security-notice', {
+                    userId: session.userId,
+                    event: 'A stolen session token may have been used; that session was signed out',
+                    occurredAt: new Date().toISOString(),
+                    ipAddress: context?.ipAddress ?? null,
+                });
+            });
             throw new UnauthorizedError('Refresh token reuse detected, please sign in again', 'TOKEN_REUSED');
         }
 
