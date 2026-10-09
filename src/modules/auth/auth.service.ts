@@ -12,6 +12,7 @@ import {
 } from '../../shared/errors/app-error.js';
 import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
+import { detectDevice } from '../../shared/utils/user-agent.js';
 import type {
     ChangePasswordInput,
     ResetPasswordInput,
@@ -47,13 +48,6 @@ export const toPublicUser = (user: User): PublicUser => ({
     isVerified: user.isVerified,
     totpEnabled: user.totpEnabled,
 });
-
-const detectDevice = (userAgent: string | null): string => {
-    if (!userAgent) return 'Unknown';
-    if (/Mobile|Android|iPhone|iPad|iPod/i.test(userAgent)) return 'Mobile';
-    if (/Tablet|iPad/i.test(userAgent)) return 'Tablet';
-    return 'Desktop';
-};
 
 const MAX_FAILED_SIGNINS = 5;
 const LOCKOUT_MINUTES = 15;
