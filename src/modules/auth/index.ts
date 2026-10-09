@@ -1,6 +1,7 @@
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import type { Mailer } from '../../mail/mailer.js';
 import { AuthController } from './auth.controller.js';
+import { createAuthJobHandlers } from './auth.jobs.js';
 import { createAuthRouter } from './auth.routes.js';
 import { createAuthenticate } from '../../shared/middlewares/authenticate.js';
 import { AuthService } from './auth.service.js';
@@ -16,8 +17,16 @@ export interface AuthModuleDependencies {
 // Composition root of the auth module
 export const createAuthModule = ({ db, mailer }: AuthModuleDependencies) => {
     const sessions = new SessionService(db);
-    const service = new AuthService(db, mailer, new VerificationCodeService(db), sessions, new RecoveryCodeService(db));
+    const codes = new VerificationCodeService(db);
+    const service = new AuthService(db, codes, sessions, new RecoveryCodeService(db));
     const authenticate = createAuthenticate(sessions);
 
-    return { service, sessions, authenticate, router: createAuthRouter(new AuthController(service), authenticate) };
+    return {
+        service,
+        sessions,
+        authenticate,
+        router: createAuthRouter(new AuthController(service), authenticate),
+        // Background jobs this module defines, delivered by the outbox worker
+        jobHandlers: createAuthJobHandlers({ db, mailer, codes }),
+    };
 };

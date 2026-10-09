@@ -45,6 +45,10 @@ const envSchema = z.object({
     APP_NAME: z.string().default('Node Auth'),
     // How long login history is kept by the cleanup job
     LOGIN_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
+    // Run the outbox worker inside the API process. Turn off when running dedicated
+    // workers (node dist/scripts/worker.js) or in tests, which drain the outbox themselves.
+    OUTBOX_WORKER_ENABLED: z.stringbool().default(true),
+    OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(100).default(1000),
     // Interactive API docs at /docs. Defaults to on, except in production.
     API_DOCS_ENABLED: z.stringbool().optional(),
 

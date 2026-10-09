@@ -1,4 +1,6 @@
+import { type AppDependencies, buildApplication } from '../src/app.js';
 import type { Mailer, MailContent } from '../src/mail/mailer.js';
+import type { OutboxWorker } from '../src/modules/outbox/outbox.worker.js';
 import { prisma } from '../src/lib/prisma.js';
 
 export const resetDatabase = async () => {
@@ -19,12 +21,16 @@ export const strongPassword = 'Sup3r$ecretPass';
 export class InMemoryMailer implements Mailer {
     readonly sent: { to: string; content: MailContent }[] = [];
 
+    // Called before reading, to deliver emails still waiting in the outbox
+    constructor(private readonly flush?: () => Promise<void>) {}
+
     async send(to: string, content: MailContent): Promise<void> {
         this.sent.push({ to, content });
     }
 
     // Last 6 digit code emailed to this address, optionally filtered by subject
-    lastCode(to: string, subjectIncludes?: string): string {
+    async lastCode(to: string, subjectIncludes?: string): Promise<string> {
+        await this.flush?.();
         const mail = this.sent.findLast(
             (m) => m.to === to && (!subjectIncludes || m.content.subject.includes(subjectIncludes))
         );
@@ -50,3 +56,15 @@ export const eventually = async <T>(check: () => T | Promise<T>, timeoutMs = 200
         }
     }
 };
+
+// App, in-memory mailer and outbox worker wired together. Emails are sent by the
+// worker, so tests drain it (mailer.lastCode does that automatically).
+export const createTestApp = (overrides: Partial<AppDependencies> = {}) => {
+    // The mailer needs the worker and the worker needs the mailer, hence the holder
+    const holder: { worker?: OutboxWorker } = {};
+    const mailer = new InMemoryMailer(async () => holder.worker?.drain());
+    const { app, worker } = buildApplication({ mailer, ...overrides });
+    holder.worker = worker;
+    return { app, mailer, worker };
+};
+

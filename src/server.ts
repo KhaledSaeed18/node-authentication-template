@@ -1,4 +1,4 @@
-import { createApp } from './app.js';
+import { buildApplication } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
@@ -7,7 +7,8 @@ import { redis } from './lib/redis.js';
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 const health = { shuttingDown: false };
-const app = createApp({ health });
+const { app, worker } = buildApplication({ health });
+if (env.OUTBOX_WORKER_ENABLED) worker.start();
 
 const server = app.listen(env.PORT, (error) => {
     if (error) {
@@ -34,6 +35,8 @@ const shutdown = (signal: NodeJS.Signals) => {
 
     server.close(async (error) => {
         if (error) logger.error({ err: error }, 'Error while closing the HTTP server');
+        // Let the worker finish the jobs it holds before closing connections
+        await worker.stop();
         await Promise.allSettled([prisma.$disconnect(), redis?.close()]);
         logger.info('Shutdown complete');
         process.exit(error ? 1 : 0);

@@ -1,12 +1,10 @@
 import { generateSync } from 'otplib';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
-import { API, eventually, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
+import { API, createTestApp, resetDatabase, strongPassword } from './helpers.js';
 
-const mailer = new InMemoryMailer();
-const app = createApp({ mailer });
+const { app, mailer, worker } = createTestApp();
 const auth = `${API}/auth`;
 
 const signup = (email = 'jane@acme.io', password = strongPassword) =>
@@ -17,7 +15,7 @@ const createVerifiedUser = async (email = 'jane@acme.io', password = strongPassw
     await signup(email, password).expect(201);
     await request(app)
         .post(`${auth}/verify-email`)
-        .send({ email, code: mailer.lastCode(email, 'Verify') })
+        .send({ email, code: await mailer.lastCode(email, 'Verify') })
         .expect(200);
     return { email, password };
 };
@@ -40,7 +38,7 @@ describe('signup and email verification', () => {
 
         expect(res.body.data.user).toMatchObject({ email: 'jane@acme.io', isVerified: false });
         expect(res.body.data.user.password).toBeUndefined();
-        expect(mailer.lastCode('jane@acme.io', 'Verify')).toMatch(/^\d{6}$/);
+        expect(await mailer.lastCode('jane@acme.io', 'Verify')).toMatch(/^\d{6}$/);
     });
 
     it('rejects a duplicate email', async () => {
@@ -64,7 +62,7 @@ describe('signup and email verification', () => {
 
     it('rejects a wrong verification code', async () => {
         await signup().expect(201);
-        const code = mailer.lastCode('jane@acme.io') === '000000' ? '111111' : '000000';
+        const code = (await mailer.lastCode('jane@acme.io')) === '000000' ? '111111' : '000000';
         await request(app).post(`${auth}/verify-email`).send({ email: 'jane@acme.io', code }).expect(400);
     });
 });
@@ -140,7 +138,7 @@ describe('password reset', () => {
     it('resets the password with the emailed code', async () => {
         const { email, password } = await createVerifiedUser();
         await request(app).post(`${auth}/forgot-password`).send({ email }).expect(200);
-        const code = await eventually(() => mailer.lastCode(email, 'Reset'));
+        const code = await mailer.lastCode(email, 'Reset');
 
         const newPassword = 'An0ther$ecretPass';
         await request(app).post(`${auth}/reset-password`).send({ email, code, newPassword }).expect(200);
@@ -327,10 +325,12 @@ describe('two-factor authentication', () => {
         const bearer = `Bearer ${body.data.accessToken}`;
         const { secret } = await enable2FA(bearer);
 
-        await eventually(() => expect(mailer.sent.map((m) => m.content.subject)).toContain('Node Auth: two-factor authentication was turned on'));
+        await worker.drain();
+        expect(mailer.sent.map((m) => m.content.subject)).toContain('Node Auth: two-factor authentication was turned on');
 
         await request(app).post(`${auth}/2fa/disable`).set('Authorization', bearer).send({ code: generateSync({ secret }) }).expect(200);
-        await eventually(() => expect(mailer.sent.map((m) => m.content.subject)).toContain('Node Auth: two-factor authentication was turned off'));
+        await worker.drain();
+        expect(mailer.sent.map((m) => m.content.subject)).toContain('Node Auth: two-factor authentication was turned off');
     });
 });
 

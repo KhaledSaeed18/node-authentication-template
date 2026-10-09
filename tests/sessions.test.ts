@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
 import { hashPassword } from '../src/shared/utils/password.js';
-import { API, eventually, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
+import { API, createTestApp, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
 
 const app = createApp({ mailer: new InMemoryMailer() });
 const auth = `${API}/auth`;
@@ -179,12 +179,11 @@ describe('password changes end sessions', () => {
     });
 
     it('password reset signs out every session', async () => {
-        const mailer = new InMemoryMailer();
-        const resetApp = createApp({ mailer });
+        const { app: resetApp, mailer } = createTestApp();
         const session = await signin();
 
         await request(resetApp).post(`${auth}/forgot-password`).send({ email }).expect(200);
-        const code = await eventually(() => mailer.lastCode(email));
+        const code = await mailer.lastCode(email);
         await request(resetApp).post(`${auth}/reset-password`).send({ email, code, newPassword }).expect(200);
 
         await loginHistory(session.accessToken).expect(401);

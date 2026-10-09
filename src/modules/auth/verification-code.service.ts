@@ -18,11 +18,11 @@ export class VerificationCodeService {
     constructor(private readonly db: PrismaClient) {}
 
     // Creates a fresh code, replacing any previous one. Returns the plain code to email.
-    async issue(userId: string, purpose: CodePurpose): Promise<string> {
+    async issue(userId: string, purpose: CodePurpose, { ignoreCooldown = false } = {}): Promise<string> {
         const existing = await this.db.verificationCode.findUnique({
             where: { userId_purpose: { userId, purpose } },
         });
-        if (existing && Date.now() - existing.createdAt.getTime() < RESEND_COOLDOWN_MS) {
+        if (!ignoreCooldown && existing && Date.now() - existing.createdAt.getTime() < RESEND_COOLDOWN_MS) {
             throw new TooManyRequestsError('Please wait a minute before requesting another code', 'CODE_COOLDOWN');
         }
 

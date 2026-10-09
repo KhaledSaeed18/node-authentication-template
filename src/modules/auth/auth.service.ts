@@ -1,7 +1,4 @@
-import { env } from '../../config/env.js';
 import type { PrismaClient, User } from '../../generated/prisma/client.js';
-import type { Mailer } from '../../mail/mailer.js';
-import { passwordResetEmail, securityNoticeEmail, verificationEmail } from '../../mail/templates.js';
 import {
     BadRequestError,
     ConflictError,
@@ -10,10 +7,10 @@ import {
     TooManyRequestsError,
     UnauthorizedError,
 } from '../../shared/errors/app-error.js';
-import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
 import { detectDevice } from '../../shared/utils/user-agent.js';
 import { type PaginationQuery, toPage } from '../../shared/validation/pagination.js';
+import { enqueue, type OutboxJobs } from '../outbox/outbox.js';
 import { type PublicUser, toPublicUser } from '../users/users.mapper.js';
 import type {
     ChangePasswordInput,
@@ -27,7 +24,8 @@ import type { RecoveryCodeService } from './recovery-code.service.js';
 import type { SessionService } from './session.service.js';
 import { signAccessToken, signMfaToken, verifyMfaToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, openTOTPSecret, sealTOTPSecret, verifyTOTP } from './totp.js';
-import { CODE_TTL_MINUTES, VerificationCodeService } from './verification-code.service.js';
+import './auth.jobs.js';
+import type { VerificationCodeService } from './verification-code.service.js';
 
 // Where a request came from, recorded in the login history
 export interface RequestContext {
@@ -50,27 +48,10 @@ const userNotFound = () => new NotFoundError('User not found', 'USER_NOT_FOUND')
 export class AuthService {
     constructor(
         private readonly db: PrismaClient,
-        private readonly mailer: Mailer,
         private readonly codes: VerificationCodeService,
         private readonly sessions: SessionService,
         private readonly recoveryCodes: RecoveryCodeService
     ) {}
-
-    private async sendVerificationCode(user: User) {
-        const code = await this.codes.issue(user.id, 'EMAIL_VERIFICATION');
-        await this.mailer.send(
-            user.email,
-            verificationEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
-        );
-    }
-
-    // Fire and forget; failures (including the resend cooldown) are only logged
-    private inBackground(task: string, work: () => Promise<void>) {
-        work().catch((error) => {
-            if (error instanceof TooManyRequestsError) return;
-            logger.error({ err: error }, `Background task failed: ${task}`);
-        });
-    }
 
     // Temporary lock after too many failed signins since the last successful one,
     // which per-IP rate limits can't catch when an attacker spreads requests
@@ -125,20 +106,9 @@ export class AuthService {
         return valid;
     }
 
-    // Lets the owner know about a security change; never blocks or fails the request
-    private notifySecurityChange(user: User, event: string, context?: RequestContext) {
-        this.inBackground('send security notice', () =>
-            this.mailer.send(
-                user.email,
-                securityNoticeEmail({
-                    appName: env.APP_NAME,
-                    name: user.firstName,
-                    event,
-                    time: new Date(),
-                    ipAddress: context?.ipAddress ?? null,
-                })
-            )
-        );
+    // Security notice for the owner, enqueued in the same transaction as the change it reports
+    private securityNotice(user: User, event: string, context?: RequestContext): OutboxJobs['email.security-notice'] {
+        return { userId: user.id, event, occurredAt: new Date().toISOString(), ipAddress: context?.ipAddress ?? null };
     }
 
     private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
@@ -175,16 +145,15 @@ export class AuthService {
             throw new ConflictError('User with this email already exists', 'EMAIL_TAKEN');
         }
 
-        const user = await this.db.user.create({
-            data: { firstName, lastName, email, password: await hashPassword(password) },
-        });
+        const passwordHash = await hashPassword(password);
 
-        // The account exists either way; if the email fails the user can ask for a new code
-        try {
-            await this.sendVerificationCode(user);
-        } catch (error) {
-            logger.error({ err: error, userId: user.id }, 'Failed to send the verification email');
-        }
+        // The account and its verification email are committed together: no account
+        // without an email on its way, and no email for an account that wasn't created
+        const user = await this.db.$transaction(async (tx) => {
+            const created = await tx.user.create({ data: { firstName, lastName, email, password: passwordHash } });
+            await enqueue(tx, 'email.verification', { email });
+            return created;
+        });
 
         return toPublicUser(user);
     }
@@ -272,27 +241,15 @@ export class AuthService {
         return toPublicUser(verifiedUser);
     }
 
-    // Always resolves the same way whether or not the email has an account.
-    // The work runs in the background so response times don't give it away either.
+    // Does exactly the same work whether or not the email has an account (one insert),
+    // so neither the response nor its timing reveals it. The worker sorts it out.
     async resendVerificationCode(email: string): Promise<void> {
-        this.inBackground('resend verification code', async () => {
-            const user = await this.db.user.findUnique({ where: { email } });
-            if (user && !user.isVerified) await this.sendVerificationCode(user);
-        });
+        await enqueue(this.db, 'email.verification', { email });
     }
 
-    // Same idea as resendVerificationCode: no way to tell if the account exists
+    // Same idea as resendVerificationCode
     async forgotPassword(email: string): Promise<void> {
-        this.inBackground('send password reset code', async () => {
-            const user = await this.db.user.findUnique({ where: { email } });
-            if (!user) return;
-
-            const code = await this.codes.issue(user.id, 'PASSWORD_RESET');
-            await this.mailer.send(
-                email,
-                passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
-            );
-        });
+        await enqueue(this.db, 'email.password-reset', { email });
     }
 
     async resetPassword({ email, code, newPassword }: ResetPasswordInput, context?: RequestContext): Promise<void> {
@@ -302,14 +259,14 @@ export class AuthService {
             throw new BadRequestError('Invalid or expired reset code', 'INVALID_CODE');
         }
 
-        await this.db.user.update({
-            where: { id: user.id },
-            data: { password: await hashPassword(newPassword) },
+        const passwordHash = await hashPassword(newPassword);
+        await this.db.$transaction(async (tx) => {
+            await tx.user.update({ where: { id: user.id }, data: { password: passwordHash } });
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Your password was reset', context));
         });
 
         // Whoever knew the old password shouldn't stay signed in
         await this.sessions.revokeAll(user.id);
-        this.notifySecurityChange(user, 'Your password was reset', context);
     }
 
     // Requires the current password; keeps the current session and ends all others
@@ -325,9 +282,12 @@ export class AuthService {
             throw new BadRequestError('Current password is incorrect', 'INVALID_PASSWORD');
         }
 
-        await this.db.user.update({ where: { id: userId }, data: { password: await hashPassword(newPassword) } });
+        const passwordHash = await hashPassword(newPassword);
+        await this.db.$transaction(async (tx) => {
+            await tx.user.update({ where: { id: userId }, data: { password: passwordHash } });
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Your password was changed', context));
+        });
         await this.sessions.revokeAll(userId, currentSessionId);
-        this.notifySecurityChange(user, 'Your password was changed', context);
     }
 
     async setup2FA(userId: string): Promise<{ secret: string; qrCode: string }> {
@@ -361,8 +321,10 @@ export class AuthService {
             throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
-        await this.db.user.update({ where: { id: userId }, data: { totpEnabled: true } });
-        this.notifySecurityChange(user, 'Two-factor authentication was turned on', context);
+        await this.db.$transaction(async (tx) => {
+            await tx.user.update({ where: { id: userId }, data: { totpEnabled: true } });
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Two-factor authentication was turned on', context));
+        });
 
         return { recoveryCodes: await this.recoveryCodes.regenerate(userId) };
     }
@@ -377,8 +339,9 @@ export class AuthService {
             throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
-        this.notifySecurityChange(user, 'New 2FA recovery codes were generated', context);
-        return { recoveryCodes: await this.recoveryCodes.regenerate(userId) };
+        const recoveryCodes = await this.recoveryCodes.regenerate(userId);
+        await enqueue(this.db, 'email.security-notice', this.securityNotice(user, 'New 2FA recovery codes were generated', context));
+        return { recoveryCodes };
     }
 
     // Second step of a 2FA signin: the challenge token from signin plus a TOTP code.
@@ -410,11 +373,13 @@ export class AuthService {
             throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
-        await this.db.user.update({
-            where: { id: userId },
-            data: { totpSecret: null, totpEnabled: false, totpLastUsedStep: null },
+        await this.db.$transaction(async (tx) => {
+            await tx.user.update({
+                where: { id: userId },
+                data: { totpSecret: null, totpEnabled: false, totpLastUsedStep: null },
+            });
+            await tx.recoveryCode.deleteMany({ where: { userId } });
+            await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Two-factor authentication was turned off', context));
         });
-        await this.recoveryCodes.clear(userId);
-        this.notifySecurityChange(user, 'Two-factor authentication was turned off', context);
     }
 }

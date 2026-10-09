@@ -8,6 +8,7 @@ import type { PrismaClient } from './generated/prisma/client.js';
 import { prisma } from './lib/prisma.js';
 import { createMailer, type Mailer } from './mail/mailer.js';
 import { createAuthModule } from './modules/auth/index.js';
+import { OutboxWorker } from './modules/outbox/outbox.worker.js';
 import { createHealthRouter, type HealthState } from './modules/health/health.routes.js';
 import { createUsersModule } from './modules/users/index.js';
 import { errorHandler, notFoundHandler } from './shared/middlewares/error-handler.js';
@@ -18,9 +19,15 @@ export interface AppDependencies {
     health: HealthState;
 }
 
-// Builds the Express app without starting a server. Dependencies can be
-// overridden, e.g. tests pass an in-memory mailer.
-export const createApp = (overrides: Partial<AppDependencies> = {}): Express => {
+export interface Application {
+    app: Express;
+    // Delivers background jobs (emails, notices); started by server.ts or the worker script
+    worker: OutboxWorker;
+}
+
+// Builds the Express app and the outbox worker without starting anything.
+// Dependencies can be overridden, e.g. tests pass an in-memory mailer.
+export const buildApplication = (overrides: Partial<AppDependencies> = {}): Application => {
     const deps: AppDependencies = {
         db: overrides.db ?? prisma,
         mailer: overrides.mailer ?? createMailer(env),
@@ -73,5 +80,9 @@ export const createApp = (overrides: Partial<AppDependencies> = {}): Express => 
     app.use(notFoundHandler);
     app.use(errorHandler);
 
-    return app;
+    const worker = new OutboxWorker(deps.db, { ...auth.jobHandlers }, { pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS });
+
+    return { app, worker };
 };
+
+export const createApp = (overrides: Partial<AppDependencies> = {}): Express => buildApplication(overrides).app;

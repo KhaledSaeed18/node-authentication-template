@@ -11,7 +11,7 @@ beforeEach(resetDatabase);
 afterAll(() => prisma.$disconnect());
 
 describe('cleanupExpiredData', () => {
-    it('removes only ended sessions, expired codes and old login history', async () => {
+    it('removes only ended sessions, expired codes, old login history and old jobs', async () => {
         const { id: userId } = await prisma.user.create({
             data: { firstName: 'Jane', lastName: 'Doe', email: 'jane@acme.io', password: 'x' },
         });
@@ -36,9 +36,21 @@ describe('cleanupExpiredData', () => {
             ],
         });
 
+        await prisma.outboxMessage.createMany({
+            data: [
+                { type: 'email.verification', payload: {}, status: 'DONE', processedAt: ago(8 * DAY) },
+                { type: 'email.verification', payload: {}, status: 'DONE', processedAt: ago(1 * DAY) },
+                { type: 'email.verification', payload: {}, status: 'FAILED', createdAt: ago(31 * DAY) },
+                { type: 'email.verification', payload: {}, status: 'FAILED', createdAt: ago(2 * DAY) },
+                { type: 'email.verification', payload: {}, status: 'PENDING', createdAt: ago(60 * DAY) },
+            ],
+        });
+
         const result = await cleanupExpiredData(prisma, { loginHistoryRetentionDays: 90 });
 
-        expect(result).toEqual({ sessions: 2, verificationCodes: 1, loginHistory: 1 });
+        expect(result).toEqual({ sessions: 2, verificationCodes: 1, loginHistory: 1, outboxMessages: 2 });
+        // Pending jobs are never removed, however old
+        expect(await prisma.outboxMessage.count({ where: { status: 'PENDING' } })).toBe(1);
         expect((await prisma.session.findMany()).map((s) => s.tokenHash)).toEqual(['active']);
         expect(await prisma.verificationCode.count()).toBe(1);
         expect(await prisma.loginHistory.count()).toBe(1);

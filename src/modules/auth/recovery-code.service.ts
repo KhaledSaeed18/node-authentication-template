@@ -45,8 +45,4 @@ export class RecoveryCodeService {
     async remaining(userId: string): Promise<number> {
         return this.db.recoveryCode.count({ where: { userId, usedAt: null } });
     }
-
-    async clear(userId: string): Promise<void> {
-        await this.db.recoveryCode.deleteMany({ where: { userId } });
-    }
 }

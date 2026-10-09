@@ -110,3 +110,28 @@ model RecoveryCode {
 
   @@unique([userId, codeHash])
 }
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+// Transactional outbox: background jobs written in the same transaction as the change
+// that caused them, then delivered (with retries) by the outbox worker
+model OutboxMessage {
+  id          String       @id @default(cuid())
+  type        String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  availableAt DateTime     @default(now())
+  lockedAt    DateTime?
+  processedAt DateTime?
+  lastError   String?
+  createdAt   DateTime     @default(now())
+
+  @@index([status, availableAt])
+}
+
