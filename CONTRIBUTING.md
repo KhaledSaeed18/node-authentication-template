@@ -30,6 +30,19 @@
 
 - Copy `.env.example` to `.env` and fill in the values.
 
+- Start the database (and Mailpit to see emails), then apply the migrations:
+
+  ```bash
+  docker compose up -d db mailpit
+  yarn db:migrate
+  ```
+
+- Run the tests:
+
+  ```bash
+  TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/auth_test yarn test
+  ```
+
 ---
 
 ### 2. How to Contribute
@@ -48,8 +61,10 @@
 
 - Use TypeScript best practices.
 - Keep the code lint-clean (`yarn lint`) and type-safe (`yarn typecheck`).
-- Validate requests using Zod.
+- Validate requests using Zod schemas and the `validate()` middleware.
 - Keep architecture modular and clean (separate routes, controllers, services).
+- Throw `AppError` subclasses with a stable error code instead of generic errors.
+- Add or update tests for every behavior change.
 
 ---
 
@@ -75,7 +90,7 @@
 
 ### 5. Pull Request Process
 
-- Ensure `yarn lint`, `yarn typecheck` and `yarn build` pass.
+- Ensure `yarn lint`, `yarn typecheck`, `yarn build` and `yarn test` pass (CI runs all of them).
 - Reference the related issue in the PR.
 - Add a clear description of what you’ve done.
 - Mark PR as draft if still working, or ready for review once complete.
