@@ -1,7 +1,7 @@
 import { env } from '../../config/env.js';
 import type { PrismaClient, User } from '../../generated/prisma/client.js';
 import type { Mailer } from '../../mail/mailer.js';
-import { passwordResetEmail, verificationEmail } from '../../mail/templates.js';
+import { passwordResetEmail, securityNoticeEmail, verificationEmail } from '../../mail/templates.js';
 import {
     BadRequestError,
     ConflictError,
@@ -123,6 +123,22 @@ export class AuthService {
             await this.db.user.update({ where: { id: user.id }, data: { password: await hashPassword(password) } });
         }
         return valid;
+    }
+
+    // Lets the owner know about a security change; never blocks or fails the request
+    private notifySecurityChange(user: User, event: string, context?: RequestContext) {
+        this.inBackground('send security notice', () =>
+            this.mailer.send(
+                user.email,
+                securityNoticeEmail({
+                    appName: env.APP_NAME,
+                    name: user.firstName,
+                    event,
+                    time: new Date(),
+                    ipAddress: context?.ipAddress ?? null,
+                })
+            )
+        );
     }
 
     private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
@@ -279,7 +295,7 @@ export class AuthService {
         });
     }
 
-    async resetPassword({ email, code, newPassword }: ResetPasswordInput): Promise<void> {
+    async resetPassword({ email, code, newPassword }: ResetPasswordInput, context?: RequestContext): Promise<void> {
         const user = await this.db.user.findUnique({ where: { email } });
 
         if (!user || !(await this.codes.consume(user.id, 'PASSWORD_RESET', code))) {
@@ -293,13 +309,15 @@ export class AuthService {
 
         // Whoever knew the old password shouldn't stay signed in
         await this.sessions.revokeAll(user.id);
+        this.notifySecurityChange(user, 'Your password was reset', context);
     }
 
     // Requires the current password; keeps the current session and ends all others
     async changePassword(
         userId: string,
         currentSessionId: string,
-        { currentPassword, newPassword }: ChangePasswordInput
+        { currentPassword, newPassword }: ChangePasswordInput,
+        context?: RequestContext
     ): Promise<void> {
         const user = await this.findUserById(userId);
 
@@ -309,6 +327,7 @@ export class AuthService {
 
         await this.db.user.update({ where: { id: userId }, data: { password: await hashPassword(newPassword) } });
         await this.sessions.revokeAll(userId, currentSessionId);
+        this.notifySecurityChange(user, 'Your password was changed', context);
     }
 
     async setup2FA(userId: string): Promise<{ secret: string; qrCode: string }> {
@@ -330,7 +349,7 @@ export class AuthService {
     }
 
     // Confirms setup with a first code, turns 2FA on and returns the recovery codes (shown once)
-    async verify2FA(userId: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    async verify2FA(userId: string, code: string, context?: RequestContext): Promise<{ recoveryCodes: string[] }> {
         const user = await this.findUserById(userId);
         if (user.totpEnabled) {
             throw new BadRequestError('2FA is already enabled', 'TWO_FACTOR_ALREADY_ENABLED');
@@ -343,12 +362,13 @@ export class AuthService {
         }
 
         await this.db.user.update({ where: { id: userId }, data: { totpEnabled: true } });
+        this.notifySecurityChange(user, 'Two-factor authentication was turned on', context);
 
         return { recoveryCodes: await this.recoveryCodes.regenerate(userId) };
     }
 
     // Replaces the recovery codes, e.g. when they run low or may have leaked
-    async regenerateRecoveryCodes(userId: string, code: string): Promise<{ recoveryCodes: string[] }> {
+    async regenerateRecoveryCodes(userId: string, code: string, context?: RequestContext): Promise<{ recoveryCodes: string[] }> {
         const user = await this.findUserById(userId);
         if (!user.totpEnabled) {
             throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
@@ -357,6 +377,7 @@ export class AuthService {
             throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
+        this.notifySecurityChange(user, 'New 2FA recovery codes were generated', context);
         return { recoveryCodes: await this.recoveryCodes.regenerate(userId) };
     }
 
@@ -380,7 +401,7 @@ export class AuthService {
         return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
     }
 
-    async disable2FA(userId: string, code: string): Promise<void> {
+    async disable2FA(userId: string, code: string, context?: RequestContext): Promise<void> {
         const user = await this.findUserById(userId);
         if (!user.totpEnabled || !user.totpSecret) {
             throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
@@ -394,5 +415,6 @@ export class AuthService {
             data: { totpSecret: null, totpEnabled: false, totpLastUsedStep: null },
         });
         await this.recoveryCodes.clear(userId);
+        this.notifySecurityChange(user, 'Two-factor authentication was turned off', context);
     }
 }

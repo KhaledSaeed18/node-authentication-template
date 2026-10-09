@@ -292,3 +292,48 @@ export const passwordResetEmail = (params: CodeEmailParams): MailContent => ({
         `${params.appName} Team`,
     ].join('\n'),
 });
+
+interface SecurityNoticeParams {
+    appName: string;
+    name: string;
+    // e.g. "Your password was changed"
+    event: string;
+    time: Date;
+    ipAddress: string | null;
+}
+
+// Short heads-up after a security-relevant change, so an account owner notices
+// changes they didn't make
+export const securityNoticeEmail = ({ appName, name, event, time, ipAddress }: SecurityNoticeParams): MailContent => {
+    const when = time.toUTCString();
+    const where = ipAddress ? ` from IP address ${ipAddress}` : '';
+    const text = [
+        `Hello ${name},`,
+        '',
+        `${event} on ${when}${where}.`,
+        '',
+        "If this was you, there's nothing to do.",
+        "If it wasn't, reset your password right away and review your active sessions.",
+        '',
+        `${appName} Team`,
+    ].join('\n');
+
+    const html = render(
+        `<!DOCTYPE html>
+<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f5f5f5; margin: 0; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 10px; padding: 24px;">
+        <h1 style="margin-top: 0; color: #374151; font-size: 22px;">{event}</h1>
+        <p>Hello <strong>{name}</strong>,</p>
+        <p>{event} on {when}{where}.</p>
+        <p>If this was you, there's nothing to do. If it wasn't, reset your password right away and review your active sessions.</p>
+        <p style="color: #6b7280;">{appName} Team</p>
+    </div>
+</body>
+</html>`,
+        { appName, name, event, when, where }
+    );
+
+    return { subject: `${appName}: ${event.toLowerCase()}`, html, text };
+};
+

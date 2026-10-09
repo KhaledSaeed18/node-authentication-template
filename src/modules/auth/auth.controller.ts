@@ -77,13 +77,13 @@ export class AuthController {
     };
 
     resetPassword = async (req: Request, res: Response) => {
-        await this.authService.resetPassword(req.body);
+        await this.authService.resetPassword(req.body, requestContext(req));
         sendSuccess(res, 200, 'Password reset successful');
     };
 
     changePassword = async (req: Request, res: Response) => {
         const { userId, sessionId } = currentUser(req);
-        await this.authService.changePassword(userId, sessionId, req.body);
+        await this.authService.changePassword(userId, sessionId, req.body, requestContext(req));
         sendSuccess(res, 200, 'Password changed successfully. Other sessions have been signed out.');
     };
 
@@ -93,12 +93,12 @@ export class AuthController {
     };
 
     verify2FA = async (req: Request, res: Response) => {
-        const data = await this.authService.verify2FA(currentUser(req).userId, req.body.code);
+        const data = await this.authService.verify2FA(currentUser(req).userId, req.body.code, requestContext(req));
         sendSuccess(res, 200, '2FA enabled. Store the recovery codes somewhere safe, they are only shown once.', data);
     };
 
     regenerateRecoveryCodes = async (req: Request, res: Response) => {
-        const data = await this.authService.regenerateRecoveryCodes(currentUser(req).userId, req.body.code);
+        const data = await this.authService.regenerateRecoveryCodes(currentUser(req).userId, req.body.code, requestContext(req));
         sendSuccess(res, 200, 'New recovery codes generated. The old ones no longer work.', data);
     };
 
@@ -108,7 +108,7 @@ export class AuthController {
     };
 
     disable2FA = async (req: Request, res: Response) => {
-        await this.authService.disable2FA(currentUser(req).userId, req.body.code);
+        await this.authService.disable2FA(currentUser(req).userId, req.body.code, requestContext(req));
         sendSuccess(res, 200, '2FA disabled successfully');
     };
 }

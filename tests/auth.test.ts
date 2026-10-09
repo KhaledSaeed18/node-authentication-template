@@ -320,4 +320,17 @@ describe('two-factor authentication', () => {
         const res = await signin(email, password).expect(200);
         expect(res.body.data.accessToken).toEqual(expect.any(String));
     });
+
+    it('emails the owner when 2FA is turned on or off', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const bearer = `Bearer ${body.data.accessToken}`;
+        const { secret } = await enable2FA(bearer);
+
+        await eventually(() => expect(mailer.sent.map((m) => m.content.subject)).toContain('Node Auth: two-factor authentication was turned on'));
+
+        await request(app).post(`${auth}/2fa/disable`).set('Authorization', bearer).send({ code: generateSync({ secret }) }).expect(200);
+        await eventually(() => expect(mailer.sent.map((m) => m.content.subject)).toContain('Node Auth: two-factor authentication was turned off'));
+    });
 });
+
