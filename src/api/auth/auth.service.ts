@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../../lib/prisma.js";
 import bcrypt from "bcryptjs";
 import { generateAccessToken, generateRefreshToken } from "../../utils/generateTokens.js";
 import type { Request } from "express";
@@ -8,12 +8,8 @@ import { sendPasswordResetEmail, sendVerificationEmail } from "../../mails/email
 import { generateQRCode, generateTOTPSecret, verifyTOTP } from "../../utils/totp.js";
 
 export class AuthService {
-  private prisma: PrismaClient;
+  private prisma = prisma;
   private saltRounds = parseInt(process.env.SALT_ROUNDS || '10');
-
-  constructor() {
-    this.prisma = new PrismaClient();
-  }
 
   // Helper method to generate code expiry
   private generateCodeExpiry(): Date {
