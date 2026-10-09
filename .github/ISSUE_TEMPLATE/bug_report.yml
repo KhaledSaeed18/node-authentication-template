@@ -1,0 +1,90 @@
+name: Bug report
+description: Something doesn't work as documented
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        **Security problems must not be reported here.** Use [private vulnerability reporting](https://github.com/KhaledSaeed18/node-authentication-template/security/advisories/new) instead.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Requests you sent (curl or HTTP), with the relevant body. Remove any real tokens or passwords.
+      placeholder: |
+        1. POST /api/v1/auth/signin with { "email": "...", "password": "..." }
+        2. POST /api/v1/auth/refresh-token with the returned refreshToken
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and response
+      description: Status code, response body (including the error "code") and anything unexpected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant server logs
+      description: Copy the related log lines (they include the request id). Will be formatted as code.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: "2.0.0 or a commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: How are you running it?
+      options:
+        - Locally (yarn dev / yarn start)
+        - Docker Compose
+        - Docker image in my own infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Node.js, PostgreSQL and OS versions, plus MAIL_TRANSPORT and whether REDIS_URL is set if relevant.
+      placeholder: "Node 24.15, PostgreSQL 18, macOS 15, MAIL_TRANSPORT=smtp"
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and this hasn't been reported yet.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/KhaledSaeed18/node-authentication-template/security/advisories/new
+    about: Please report security problems privately, not as public issues.
+  - name: Read the documentation
+    url: https://github.com/KhaledSaeed18/node-authentication-template#readme
+    about: Setup, configuration, endpoints and the security design.
