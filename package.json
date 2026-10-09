@@ -1,12 +1,39 @@
 {
   "name": "node-authentication-template",
   "version": "2.0.0",
-  "main": "dist/server.js",
-  "license": "MIT",
+  "description": "Secure authentication API for Node.js: email verification, TOTP 2FA with recovery codes, rotating refresh tokens, session management, Argon2id, Prisma and PostgreSQL",
+  "private": true,
   "type": "module",
+  "license": "MIT",
+  "author": "Khaled Saeed (https://github.com/KhaledSaeed18)",
+  "homepage": "https://github.com/KhaledSaeed18/node-authentication-template#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KhaledSaeed18/node-authentication-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KhaledSaeed18/node-authentication-template/issues"
+  },
+  "keywords": [
+    "authentication",
+    "auth",
+    "express",
+    "typescript",
+    "prisma",
+    "postgresql",
+    "jwt",
+    "refresh-token",
+    "2fa",
+    "totp",
+    "argon2",
+    "sessions",
+    "api"
+  ],
   "engines": {
     "node": ">=24"
   },
+  "packageManager": "yarn@1.22.22",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
