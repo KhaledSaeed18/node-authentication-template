@@ -1,5 +1,7 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { logger } from '../../lib/logger.js';
+import { recordOutboxJob } from '../../lib/metrics.js';
 import type { OutboxHandlers } from './outbox.js';
 
 export interface OutboxWorkerOptions {
@@ -95,6 +97,8 @@ export class OutboxWorker {
         if (this.running) this.schedule(handled === this.batchSize ? 0 : this.pollIntervalMs);
     }
 
+    // Each claimed job is traced in run(); the polling query itself starts no trace
+    // (see the sampler in instrumentation.ts)
     private async claim(): Promise<ClaimedJob[]> {
         const staleSeconds = Math.ceil(this.lockTimeoutMs / 1000);
         return this.db.$queryRaw<ClaimedJob[]>`
@@ -112,7 +116,21 @@ export class OutboxWorker {
         `;
     }
 
-    private async run(job: ClaimedJob) {
+    private run(job: ClaimedJob): Promise<void> {
+        const attributes = { 'outbox.job.id': job.id, 'outbox.job.type': job.type, 'outbox.job.attempt': job.attempts };
+        return trace.getTracer('node-auth').startActiveSpan(`outbox ${job.type}`, { attributes }, async (span) => {
+            try {
+                await this.execute(job, (error) => {
+                    span.recordException(error instanceof Error ? error : String(error));
+                    span.setStatus({ code: SpanStatusCode.ERROR });
+                });
+            } finally {
+                span.end();
+            }
+        });
+    }
+
+    private async execute(job: ClaimedJob, onFailure: (error: unknown) => void) {
         const handler = this.handlers[job.type as keyof OutboxHandlers] as
             | ((payload: unknown, context: { attempt: number }) => Promise<void>)
             | undefined;
@@ -125,7 +143,9 @@ export class OutboxWorker {
                 where: { id: job.id },
                 data: { status: 'DONE', processedAt: new Date(), lockedAt: null, lastError: null },
             });
+            recordOutboxJob(job.type, 'done');
         } catch (error) {
+            onFailure(error);
             const message = error instanceof Error ? error.message : String(error);
             const giveUp = !handler || job.attempts >= this.maxAttempts;
 
@@ -139,6 +159,7 @@ export class OutboxWorker {
                 },
             });
 
+            recordOutboxJob(job.type, giveUp ? 'failed' : 'retry');
             const log = { err: error, jobId: job.id, type: job.type, attempt: job.attempts };
             if (giveUp) logger.error(log, 'Outbox job failed permanently');
             else logger.warn(log, 'Outbox job failed, will retry');

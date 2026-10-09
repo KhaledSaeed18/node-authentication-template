@@ -1,0 +1,17 @@
+# Optional observability stack: traces, metrics and logs in Grafana.
+#   docker compose -f compose.yaml -f compose.observability.yaml up --build
+# Grafana: http://localhost:3001 (traces in Tempo, metrics in Prometheus, logs in Loki)
+services:
+  otel-lgtm:
+    image: grafana/otel-lgtm
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+      - "${OTLP_HTTP_PORT:-4318}:4318"
+
+  api:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: node-auth
+    depends_on:
+      otel-lgtm:
+        condition: service_started

@@ -2,6 +2,7 @@ import { buildApplication } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
+import { observeOutboxBacklog } from './lib/metrics.js';
 import { redis } from './lib/redis.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -9,6 +10,7 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 const health = { shuttingDown: false };
 const { app, worker } = buildApplication({ health });
 if (env.OUTBOX_WORKER_ENABLED) worker.start();
+observeOutboxBacklog(() => prisma.outboxMessage.count({ where: { status: 'PENDING' } }));
 
 const server = app.listen(env.PORT, (error) => {
     if (error) {

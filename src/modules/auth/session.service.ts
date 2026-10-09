@@ -6,6 +6,7 @@ import { randomToken, safeEqual, sha256 } from '../../shared/utils/crypto.js';
 import { durationToMs } from '../../shared/utils/duration.js';
 import type { RequestContext } from './auth.service.js';
 import { recordSecurityEvent } from '../audit/security-events.js';
+import { recordRefreshTokenReuse } from '../../lib/metrics.js';
 import { enqueue } from '../outbox/outbox.js';
 import './auth.jobs.js';
 
@@ -88,6 +89,7 @@ export class SessionService {
             }
 
             await this.revoke(session.id);
+            recordRefreshTokenReuse();
             logger.warn({ sessionId: session.id, userId: session.userId }, 'Refresh token reuse detected, session revoked');
             await this.db.$transaction(async (tx) => {
                 await recordSecurityEvent(tx, session.userId, 'refresh_token.reuse_detected', context, { sessionId: session.id });

@@ -10,6 +10,7 @@ import {
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
 import { describeUserAgent, detectDevice } from '../../shared/utils/user-agent.js';
 import { recordSecurityEvent } from '../audit/security-events.js';
+import { recordAccountLocked, recordSignin } from '../../lib/metrics.js';
 import { type PaginationQuery, toPage } from '../../shared/validation/pagination.js';
 import { enqueue, type OutboxJobs } from '../outbox/outbox.js';
 import { type PublicUser, toPublicUser } from '../users/users.mapper.js';
@@ -80,9 +81,10 @@ export class AuthService {
     // Temporary lock after too many failed signins since the last successful one,
     // which per-IP rate limits can't catch when an attacker spreads requests
     // Returns the current failure count so callers don't have to query it again
-    private async assertNotLocked(userId: string): Promise<number> {
+    private async assertNotLocked(userId: string, method: 'password' | 'two_factor'): Promise<number> {
         const failures = await this.recentFailures(userId);
         if (failures >= MAX_FAILED_SIGNINS) {
+            recordSignin(method, 'locked');
             throw new TooManyRequestsError(
                 `Too many failed sign-in attempts. Please try again in ${LOCKOUT_MINUTES} minutes.`,
                 'ACCOUNT_LOCKED'
@@ -148,6 +150,8 @@ export class AuthService {
         await this.recordLoginAttempt(user.id, context, false);
         if (previousFailures + 1 !== MAX_FAILED_SIGNINS) return;
 
+        recordAccountLocked();
+
         await this.db.$transaction(async (tx) => {
             await recordSecurityEvent(tx, user.id, 'account.locked', context, { failedAttempts: MAX_FAILED_SIGNINS });
             await enqueue(
@@ -185,7 +189,8 @@ export class AuthService {
     }
 
     // Every successful sign-in (password, 2FA, passkey) ends here
-    private async completeSignin(user: User, context: RequestContext) {
+    private async completeSignin(user: User, context: RequestContext, method: 'password' | 'two_factor' | 'passkey') {
+        recordSignin(method, 'success');
         await this.alertIfNewDevice(user, context);
         await this.recordLoginAttempt(user.id, context, true);
         return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
@@ -245,12 +250,14 @@ export class AuthService {
             // so response times don't reveal whether the email is registered
             await this.recentFailures(UNKNOWN_USER_ID);
             await verifyAgainstDummy(password);
+            recordSignin('password', 'failure');
             throw invalidCredentials();
         }
 
-        const failures = await this.assertNotLocked(user.id);
+        const failures = await this.assertNotLocked(user.id, 'password');
 
         if (!(await this.checkPassword(user, password))) {
+            recordSignin('password', 'failure');
             await this.registerFailedSignin(user, context, failures);
             throw invalidCredentials();
         }
@@ -259,10 +266,11 @@ export class AuthService {
 
         // Password is right but a second factor is needed: hand out a short-lived challenge token
         if (user.totpEnabled) {
+            recordSignin('password', 'second_factor_required');
             return { requiresTwoFactor: true, mfaToken: signMfaToken(user.id) };
         }
 
-        return { requiresTwoFactor: false, ...(await this.completeSignin(user, context)) };
+        return { requiresTwoFactor: false, ...(await this.completeSignin(user, context, 'password')) };
     }
 
     async logout(sessionId: string): Promise<void> {
@@ -442,14 +450,15 @@ export class AuthService {
             throw new UnauthorizedError('Two-factor session expired, please sign in again', 'INVALID_MFA_TOKEN');
         }
 
-        const failures = await this.assertNotLocked(user.id);
+        const failures = await this.assertNotLocked(user.id, 'two_factor');
 
         if (!(await this.checkSecondFactor(user, code, context))) {
+            recordSignin('two_factor', 'failure');
             await this.registerFailedSignin(user, context, failures);
             throw new UnauthorizedError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
-        return this.completeSignin(user, context);
+        return this.completeSignin(user, context, 'two_factor');
     }
 
     async disable2FA(userId: string, code: string, context?: RequestContext): Promise<void> {
@@ -495,10 +504,16 @@ export class AuthService {
     // lockout doesn't apply either: it protects guessable secrets, and it would let an
     // attacker lock a user out of their passkey too.
     async signinWithPasskey({ response }: PasskeySigninInput, context: RequestContext) {
-        const user = await this.passkeys.authenticate(response as Parameters<PasskeyService['authenticate']>[0]);
+        let user: User;
+        try {
+            user = await this.passkeys.authenticate(response as Parameters<PasskeyService['authenticate']>[0]);
+        } catch (error) {
+            recordSignin('passkey', 'failure');
+            throw error;
+        }
         if (!user.isVerified) throw notVerified();
 
-        return this.completeSignin(user, context);
+        return this.completeSignin(user, context, 'passkey');
     }
 
     async listPasskeys(userId: string): Promise<PublicPasskey[]> {
