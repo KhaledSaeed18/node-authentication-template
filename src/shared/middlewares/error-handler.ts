@@ -33,7 +33,6 @@ export const notFoundHandler = (_req: Request, _res: Response, next: NextFunctio
     next(new NotFoundError());
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorHandler = (err: unknown, req: Request, res: Response, _next: NextFunction) => {
     const appError = toAppError(err);
 
