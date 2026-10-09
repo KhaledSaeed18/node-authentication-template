@@ -17,8 +17,11 @@ model User {
   role      Role   @default(USER)
   isVerified Boolean @default(false)
 
+  // Encrypted with AES-256-GCM (see shared/utils/crypto.ts)
   totpSecret String?
   totpEnabled Boolean @default(false)
+  // Last accepted TOTP time step, so a code can't be replayed
+  totpLastUsedStep Int?
 
   LoginHistory      LoginHistory[]
   verificationCodes VerificationCode[]

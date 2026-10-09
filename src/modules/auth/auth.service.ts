@@ -22,7 +22,7 @@ import type {
 } from './auth.schemas.js';
 import type { SessionService } from './session.service.js';
 import { signAccessToken } from './tokens.js';
-import { generateQRCode, generateTOTPSecret, verifyTOTP } from './totp.js';
+import { generateQRCode, generateTOTPSecret, openTOTPSecret, sealTOTPSecret, verifyTOTP } from './totp.js';
 import { CODE_TTL_MINUTES, VerificationCodeService } from './verification-code.service.js';
 
 // Where a request came from, recorded in the login history
@@ -106,6 +106,23 @@ export class AuthService {
                 'ACCOUNT_LOCKED'
             );
         }
+    }
+
+    // Checks a TOTP code and records its time step so the same code can't be used again.
+    // Legacy plaintext secrets are encrypted on first successful use.
+    private async checkTOTP(user: User, token: string): Promise<boolean> {
+        if (!user.totpSecret) return false;
+
+        const secret = openTOTPSecret(user.totpSecret);
+        const step = await verifyTOTP(token, secret, user.totpLastUsedStep);
+        if (step === null) return false;
+
+        // Conditional update: of two concurrent requests with the same code, only one wins
+        const { count } = await this.db.user.updateMany({
+            where: { id: user.id, OR: [{ totpLastUsedStep: null }, { totpLastUsedStep: { lt: step } }] },
+            data: { totpLastUsedStep: step, totpSecret: sealTOTPSecret(secret) },
+        });
+        return count === 1;
     }
 
     // Verifies the password and upgrades the stored hash if it uses older settings
@@ -306,13 +323,13 @@ export class AuthService {
             throw new BadRequestError('2FA is already enabled for this account', 'TWO_FACTOR_ALREADY_ENABLED');
         }
 
-        const { secret, otpauth_url } = generateTOTPSecret(user.email);
-        const qrCode = await generateQRCode(otpauth_url);
+        const { secret, otpauthUrl } = generateTOTPSecret(user.email);
+        const qrCode = await generateQRCode(otpauthUrl);
 
-        // Stored but not active until confirmed with a valid code
+        // Stored encrypted, and not active until confirmed with a valid code
         await this.db.user.update({
             where: { id: userId },
-            data: { totpSecret: secret, totpEnabled: false },
+            data: { totpSecret: sealTOTPSecret(secret), totpEnabled: false, totpLastUsedStep: null },
         });
 
         return { secret, qrCode };
@@ -326,7 +343,7 @@ export class AuthService {
         if (!user.totpSecret) {
             throw new BadRequestError('2FA setup not initiated', 'TWO_FACTOR_NOT_INITIATED');
         }
-        if (!(await verifyTOTP(token, user.totpSecret))) {
+        if (!(await this.checkTOTP(user, token))) {
             throw new BadRequestError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
         }
 
@@ -350,7 +367,7 @@ export class AuthService {
         if (!user.isVerified) throw notVerified();
 
         if (user.totpEnabled) {
-            if (!user.totpSecret || !(await verifyTOTP(token, user.totpSecret))) {
+            if (!(await this.checkTOTP(user, token))) {
                 await this.recordLoginAttempt(user.id, context, false);
                 throw new UnauthorizedError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
             }
@@ -366,13 +383,13 @@ export class AuthService {
         if (!user.totpEnabled || !user.totpSecret) {
             throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
         }
-        if (!(await verifyTOTP(token, user.totpSecret))) {
+        if (!(await this.checkTOTP(user, token))) {
             throw new BadRequestError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
         }
 
         await this.db.user.update({
             where: { id: userId },
-            data: { totpSecret: null, totpEnabled: false },
+            data: { totpSecret: null, totpEnabled: false, totpLastUsedStep: null },
         });
     }
 }

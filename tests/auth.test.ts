@@ -150,6 +150,17 @@ describe('password reset', () => {
     });
 });
 
+// Each TOTP code works once; pretend the next 30s window started
+const nextTotpWindow = () => prisma.user.updateMany({ data: { totpLastUsedStep: null } });
+
+const enable2FA = async (bearer: string) => {
+    const setup = await request(app).post(`${auth}/2fa/setup`).set('Authorization', bearer).expect(200);
+    const { secret } = setup.body.data;
+    await request(app).post(`${auth}/2fa/verify`).set('Authorization', bearer).send({ token: generateSync({ secret }) }).expect(200);
+    await nextTotpWindow();
+    return secret as string;
+};
+
 describe('two-factor authentication', () => {
     it('enables 2FA, requires a TOTP code at signin, then disables it', async () => {
         const { email, password } = await createVerifiedUser();
@@ -166,6 +177,7 @@ describe('two-factor authentication', () => {
             .set('Authorization', bearer)
             .send({ token: generateSync({ secret }) })
             .expect(200);
+        await nextTotpWindow();
 
         const pending = await signin(email, password).expect(200);
         expect(pending.body.data.requiresOtp).toBe(true);
@@ -177,6 +189,7 @@ describe('two-factor authentication', () => {
             .send({ email, password, token: generateSync({ secret }) })
             .expect(200);
         expect(done.body.data.accessToken).toEqual(expect.any(String));
+        await nextTotpWindow();
 
         await request(app)
             .post(`${auth}/2fa/disable`)
@@ -184,5 +197,39 @@ describe('two-factor authentication', () => {
             .send({ token: generateSync({ secret }) })
             .expect(200);
         await signin(email, password).expect(200);
+    });
+
+    it('stores the TOTP secret encrypted', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+
+        const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+        expect(user.totpSecret).toMatch(/^v1:/);
+        expect(user.totpSecret).not.toContain(secret);
+    });
+
+    it('rejects a TOTP code that was already used', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+
+        const token = generateSync({ secret });
+        await request(app).post(`${auth}/2fa/signin`).send({ email, password, token }).expect(200);
+        await request(app).post(`${auth}/2fa/signin`).send({ email, password, token }).expect(401);
+    });
+
+    it('keeps working for secrets stored in plaintext by older versions', async () => {
+        const { email, password } = await createVerifiedUser();
+        const legacySecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+        await prisma.user.update({ where: { email }, data: { totpSecret: legacySecret, totpEnabled: true } });
+
+        await request(app)
+            .post(`${auth}/2fa/signin`)
+            .send({ email, password, token: generateSync({ secret: legacySecret }) })
+            .expect(200);
+
+        const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+        expect(user.totpSecret).toMatch(/^v1:/);
     });
 });
