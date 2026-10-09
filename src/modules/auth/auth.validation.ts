@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Request, Response, NextFunction } from 'express';
-import { errorHandler } from '../../shared/utils/http-error.js';
+import { ValidationError } from '../../shared/errors/app-error.js';
 import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from './auth.constants.js';
 
 // Trim first, then check the format (z.email() alone rejects surrounding spaces)
@@ -146,7 +146,7 @@ const validate = (schema: z.ZodType) => (req: Request, _res: Response, next: Nex
             message: issue.message
         }));
 
-        return next(errorHandler(400, "Validation failed. Please check your input.", { validationErrors }));
+        return next(new ValidationError(validationErrors));
     }
 
     req.body = result.data;

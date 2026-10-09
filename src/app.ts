@@ -1,10 +1,10 @@
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { httpLogger } from './lib/logger.js';
 import AuthRouter from './modules/auth/auth.routes.js';
-import { ErrorMiddleware } from './shared/middlewares/error-handler.js';
+import { errorHandler, notFoundHandler } from './shared/middlewares/error-handler.js';
 
 // Builds the Express app without starting a server, so tests can use it directly
 export const createApp = (): Express => {
@@ -39,15 +39,8 @@ export const createApp = (): Express => {
 
     app.use(`${baseUrl}/auth`, new AuthRouter().getRouter());
 
-    app.use((_req: Request, res: Response) => {
-        res.status(404).json({
-            status: 'fail',
-            statusCode: 404,
-            message: 'Resource not found',
-        });
-    });
-
-    app.use(ErrorMiddleware.handleError);
+    app.use(notFoundHandler);
+    app.use(errorHandler);
 
     return app;
 };
