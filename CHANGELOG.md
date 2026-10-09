@@ -8,6 +8,7 @@
 
 ### Added
 
+- OpenTelemetry: traces for HTTP, Express, Prisma and SQL, business metrics, trace ids in logs; enabled with `OTEL_EXPORTER_OTLP_ENDPOINT`. `compose.observability.yaml` adds a Grafana stack.
 - Account activity log (`GET /users/me/activity`, and `GET /users/:userId/activity` for admins) recording security-relevant changes, plus email alerts for sign-ins from a new browser/OS, account lockouts, refresh token reuse and recovery code use. New setting `SECURITY_EVENT_RETENTION_DAYS`.
 - Security automation: CodeQL, a container build that is smoke tested and scanned with Trivy (with an SBOM), dependency review on pull requests. The runtime image no longer contains npm or yarn.
 - ES256 signing keys stored encrypted in the database, rotated automatically (`SIGNING_KEY_ROTATION_DAYS`), and published at `/.well-known/jwks.json` so other services can verify access tokens.

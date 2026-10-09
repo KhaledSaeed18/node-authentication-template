@@ -60,7 +60,8 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 **Operations**
 
 - Transactional outbox: emails and notices are committed with the change that caused them and delivered by a worker with retries (`FOR UPDATE SKIP LOCKED`, runs in-process or as separate workers)
-- Structured JSON logs (pino) with request ids and secret redaction
+- OpenTelemetry traces (HTTP, Express, Prisma and SQL) and business metrics (sign-ins by method and result, lockouts, token reuse, outbox throughput and backlog), with an optional Grafana stack
+- Structured JSON logs (pino) with request ids, trace ids and secret redaction
 - Liveness and readiness probes, graceful shutdown
 - OpenAPI 3.1 document and interactive API reference at `/docs`
 - Docker image and a Compose stack (PostgreSQL, Redis, Mailpit)
@@ -133,6 +134,8 @@ All settings are environment variables, validated at startup: the server refuses
 | `REDIS_URL` | unset | Share rate limit counters between instances |
 | `RATE_LIMIT_ENABLED` | `true` | Turn rate limiting off (used by the tests) |
 | `LOG_LEVEL` | `info` | pino log level |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | Turns on OpenTelemetry export (e.g. `http://localhost:4318`); the standard `OTEL_*` variables apply |
+| `OTEL_SERVICE_NAME` | `node-auth` | Service name in traces and metrics |
 | `APP_NAME` | `Node Auth` | Shown in emails and authenticator apps |
 | `API_DOCS_ENABLED` | on outside production | Serve `/docs` |
 | `LOGIN_HISTORY_RETENTION_DAYS` | `90` | Used by the cleanup job |
@@ -313,6 +316,26 @@ Emails are captured by an in-memory mailer, so tests read the codes directly.
 - Schedule `node dist/scripts/cleanup.js`, for example daily.
 - Emails are delivered by the outbox worker, which runs inside each API instance by default. To scale it separately, set `OUTBOX_WORKER_ENABLED=false` on the API and run `node dist/scripts/worker.js` as its own deployment; any number of workers can run at once.
 - Point the readiness probe at `/ready` and the liveness probe at `/health`. On `SIGTERM` the server reports not ready, finishes in-flight requests and closes its connections.
+
+## Observability
+
+Telemetry is off until `OTEL_EXPORTER_OTLP_ENDPOINT` points at an OpenTelemetry collector or any OTLP backend (Grafana, Honeycomb, Datadog, ...). The instrumentation is loaded with `node --import ./dist/instrumentation.js` (already done by `yarn start`, `yarn dev` and the Docker image).
+
+To try it locally with Grafana, Tempo, Prometheus and Loki in one container:
+
+```bash
+docker compose -f compose.yaml -f compose.observability.yaml up --build
+```
+
+Then open Grafana at <http://localhost:3001>. Custom metrics:
+
+| Metric | Attributes |
+| --- | --- |
+| `auth.signin.attempts` | `method` (password, two_factor, passkey), `result` (success, failure, locked, second_factor_required) |
+| `auth.account.lockouts` | |
+| `auth.refresh_token.reuse` | |
+| `outbox.jobs.processed` | `type`, `outcome` (done, retry, failed) |
+| `outbox.jobs.pending` | gauge |
 
 ## Design Documents
 
