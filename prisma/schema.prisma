@@ -1,7 +1,9 @@
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "esm"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  // Explicit, otherwise it is inferred from tsconfig.json (which isn't there during the Docker install)
+  importFileExtension = "js"
 }
 
 datasource db {
@@ -9,17 +11,17 @@ datasource db {
 }
 
 model User {
-  id        String @id @default(cuid())
-  firstName String
-  lastName  String
-  email     String @unique
-  password  String
-  role      Role   @default(USER)
+  id         String  @id @default(cuid())
+  firstName  String
+  lastName   String
+  email      String  @unique
+  password   String
+  role       Role    @default(USER)
   isVerified Boolean @default(false)
 
   // Encrypted with AES-256-GCM (see shared/utils/crypto.ts)
-  totpSecret String?
-  totpEnabled Boolean @default(false)
+  totpSecret       String?
+  totpEnabled      Boolean @default(false)
   // Last accepted TOTP time step, so a code can't be replayed
   totpLastUsedStep Int?
 
@@ -108,4 +110,3 @@ model RecoveryCode {
 
   @@unique([userId, codeHash])
 }
-
