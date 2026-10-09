@@ -26,7 +26,7 @@ export const generateQRCode = async (otpauthUrl: string): Promise<string> => {
         return dataUrl;
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        throw new Error(`Failed to generate QR code: ${errorMessage}`);
+        throw new Error(`Failed to generate QR code: ${errorMessage}`, { cause: error });
     }
 };
 

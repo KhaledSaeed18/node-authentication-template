@@ -18,7 +18,7 @@ export const sendVerificationEmail = async (email: string, otpCode: string, name
 
         await transporter.sendMail(mailOptions);
     } catch (error) {
-        throw new Error(`Error sending verification email: ${error}`);
+        throw new Error(`Error sending verification email: ${error}`, { cause: error });
     }
 };
 
@@ -39,6 +39,6 @@ export const sendPasswordResetEmail = async (email: string, resetCode: string, n
 
         await transporter.sendMail(mailOptions);
     } catch (error) {
-        throw new Error(`Error sending password reset email: ${error}`);
+        throw new Error(`Error sending password reset email: ${error}`, { cause: error });
     }
 };

@@ -92,7 +92,7 @@ export class AuthService {
       );
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`Error sending verification email: ${errorMessage}`);
+      throw new Error(`Error sending verification email: ${errorMessage}`, { cause: error });
     }
 
     const newUser = await this.prisma.user.create({
@@ -219,9 +219,9 @@ export class AuthService {
       return newAccessToken;
     } catch (error) {
       if (error instanceof TokenExpiredError) {
-        throw new Error("Refresh token expired");
+        throw new Error("Refresh token expired", { cause: error });
       }
-      throw new Error("Error refreshing access token");
+      throw new Error("Error refreshing access token", { cause: error });
     }
   }
 
