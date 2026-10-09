@@ -55,6 +55,7 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 **Security**
 
 - Argon2id password hashing (old bcrypt hashes are upgraded on sign in)
+- Breached password screening with Have I Been Pwned (k-anonymity: the password never leaves the server)
 - Account lockout after repeated failed sign-ins, constant-time rejection of unknown emails
 - One-time codes stored as HMACs, single use, 5 attempts max, resend cooldown
 - No account enumeration on forgot-password, resend-verification, verify-email and reset-password
@@ -145,6 +146,7 @@ All settings are environment variables, validated at startup: the server refuses
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | Turns on OpenTelemetry export (e.g. `http://localhost:4318`); the standard `OTEL_*` variables apply |
 | `OTEL_SERVICE_NAME` | `node-auth` | Service name in traces and metrics |
 | `APP_NAME` | `Node Auth` | Shown in emails and authenticator apps |
+| `PASSWORD_BREACH_CHECK` | `true` | Refuse new passwords found in data breaches |
 | `API_DOCS_ENABLED` | on outside production | Serve `/docs` |
 | `LOGIN_HISTORY_RETENTION_DAYS` | `90` | Used by the cleanup job |
 | `SECURITY_EVENT_RETENTION_DAYS` | `365` | How long account activity is kept |
@@ -285,7 +287,7 @@ Errors carry a stable, machine-readable `code`:
 
 ## Security Notes
 
-- **Passwords** are hashed with Argon2id (19 MiB, t=2, p=1). Hashes from older versions (bcrypt) keep working and are upgraded on the next sign in.
+- **Passwords** are hashed with Argon2id (19 MiB, t=2, p=1). Hashes from older versions (bcrypt) keep working and are upgraded on the next sign in. New passwords are checked against Have I Been Pwned with k-anonymity (only 5 characters of the SHA-1 are sent); the check fails open if the API is down.
 - **Lockout**: 5 failed sign-ins (password or 2FA code) within 15 minutes lock the account until the failures age out. Unknown emails are checked against a dummy hash so they take as long to reject as a wrong password.
 - **Codes** for email verification and password reset are stored as HMACs keyed from `ENCRYPTION_KEY`, are single use, expire after 15 minutes and are discarded after 5 wrong attempts.
 - **Enumeration**: endpoints that take an email answer the same way whether or not the account exists. Signup still returns 409 for a taken email; that is a deliberate usability tradeoff and it is rate limited.

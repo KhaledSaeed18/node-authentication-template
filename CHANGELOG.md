@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Breached password screening with Have I Been Pwned (k-anonymity) for signup, reset and change. Fails open; `PASSWORD_BREACH_CHECK=false` turns it off.
+
 ## 3.1.0
 
 OpenID Connect provider: other applications can now sign their users in through this service.

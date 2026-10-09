@@ -30,7 +30,7 @@ A STRIDE analysis of the authentication service. Each threat lists the mitigatio
 | Threat | Mitigation | Tests |
 | --- | --- | --- |
 | Password guessing on one account | Lockout after 5 failures in 15 min, owner emailed; per-IP rate limits | `signin-protection`, `activity` |
-| Credential stuffing across many accounts | Per-IP rate limits, optionally shared through Redis; 2FA and passkeys | `signin-protection` |
+| Credential stuffing across many accounts | Per-IP rate limits, optionally shared through Redis; 2FA and passkeys; new passwords screened against known breaches | `signin-protection`, `breached-passwords` |
 | Guessing email or reset codes | HMAC-stored, 5 attempts per code (claimed atomically, so parallel guesses don't get more), 15 min expiry, single use | `verification-codes` |
 | Forged access tokens | ES256 with pinned algorithm, key resolved by `kid`, issuer and audience checked; rejects `alg: none` and HS256 signed with the public key | `tokens` |
 | Stolen refresh token | Rotation on every use; reuse revokes the session and alerts the owner | `sessions`, `activity` |
@@ -99,7 +99,7 @@ A STRIDE analysis of the authentication service. Each threat lists the mitigatio
 - **`ENCRYPTION_KEY` is a single point of failure** for data at rest, and rotating it is not automated.
 - **TOTP and email codes are phishable** in real time; only passkeys resist phishing.
 - **Dependencies**: the Prisma CLI pins `deepmerge-ts` 7.x with a known high-severity advisory (only reachable through Prisma's own config loading). Tracked by Trivy and Dependabot.
-- **No breached-password check** (e.g. Have I Been Pwned); only a small list of common passwords is rejected.
+- **Breached password screening fails open**: when Have I Been Pwned is unreachable, a breached password can get through (logged as a warning).
 
 ## Out of scope
 
