@@ -1,6 +1,6 @@
 # Node Authentication Template
 
-A secure, modern authentication API for Node.js, built with TypeScript, Express 5, Prisma 7 and PostgreSQL. It covers the full account lifecycle (signup, email verification, sign in, password reset, TOTP two-factor authentication with recovery codes, rotating refresh tokens and session management) and is meant to be dropped into a project or used as the starting point of one.
+A secure, modern authentication API for Node.js, built with TypeScript, Express 5, Prisma 7 and PostgreSQL. It covers the full account lifecycle (signup, email verification, passkeys, password sign in and reset, TOTP two-factor authentication with recovery codes, rotating refresh tokens and session management) and is meant to be dropped into a project or used as the starting point of one.
 
 [![CI](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-24-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -20,6 +20,13 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 - Sign in with email and password, case-insensitive emails
 - Forgot / reset password, change password
 - Profile endpoints and an admin-only user list (role based access control)
+
+**Passkeys**
+
+- Passwordless sign-in with WebAuthn passkeys (Touch ID, Face ID, Windows Hello, Android, security keys, synced passkeys)
+- Usernameless: the browser offers the saved passkeys, no email to type
+- User verification required, so a passkey sign-in counts as two factors
+- Single-use challenges, clone detection with the signature counter, passkey management (list, rename, remove)
 
 **Two-factor authentication**
 
@@ -64,7 +71,7 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 | HTTP | Express 5, helmet, cors, express-rate-limit (+ Redis store) |
 | Database | PostgreSQL, Prisma 7 with the `pg` driver adapter |
 | Validation | Zod 4 (also used to generate the OpenAPI document) |
-| Auth | jsonwebtoken, @node-rs/argon2, otplib, qrcode |
+| Auth | @simplewebauthn/server, jsonwebtoken, @node-rs/argon2, otplib, qrcode |
 | Email | Nodemailer (SMTP, Gmail OAuth2 or console) |
 | Logging | pino, pino-http |
 | Tooling | tsx, ESLint 10, Vitest, Supertest, Docker |
@@ -116,6 +123,8 @@ All settings are environment variables, validated at startup: the server refuses
 | `JWT_ISSUER` / `JWT_AUDIENCE` | `node-auth` / `node-auth-api` | Checked on every access token |
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | `15m` / `7d` | Token lifetimes (`s`, `m`, `h`, `d`) |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma separated list of allowed origins |
+| `WEBAUTHN_RP_ID` | `localhost` | Domain passkeys are bound to (e.g. `example.com`) |
+| `WEBAUTHN_ORIGINS` | `http://localhost:3000` | Comma separated front-end origins allowed to use passkeys |
 | `TRUST_PROXY` | `false` | Express trust proxy setting, needed behind a load balancer for correct client IPs |
 | `REDIS_URL` | unset | Share rate limit counters between instances |
 | `RATE_LIMIT_ENABLED` | `true` | Turn rate limiting off (used by the tests) |
@@ -171,6 +180,13 @@ The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json
 | POST | `/auth/2fa/verify` | yes | Turn 2FA on, returns recovery codes |
 | POST | `/auth/2fa/recovery-codes` | yes | Replace the recovery codes |
 | POST | `/auth/2fa/disable` | yes | Turn 2FA off |
+| POST | `/auth/passkeys/signin/options` | | Start a passwordless sign-in |
+| POST | `/auth/passkeys/signin` | | Finish it with the authenticator response |
+| POST | `/auth/passkeys/register/options` | yes | Start registering a passkey |
+| POST | `/auth/passkeys/register` | yes | Finish registering it |
+| GET | `/auth/passkeys` | yes | List passkeys |
+| PATCH | `/auth/passkeys/:passkeyId` | yes | Rename a passkey |
+| DELETE | `/auth/passkeys/:passkeyId` | yes | Remove a passkey |
 | GET | `/users/me` | yes | Current user |
 | PATCH | `/users/me` | yes | Update first/last name |
 | GET | `/users` | admin | List users (`?limit=&cursor=`) |
@@ -202,7 +218,8 @@ Errors carry a stable, machine-readable `code`:
 1. `POST /auth/signin` with email and password.
 2. Without 2FA, the response contains `accessToken` and `refreshToken`.
 3. With 2FA, it contains `{ requiresTwoFactor: true, mfaToken }`. Send `POST /auth/2fa/signin` with the `mfaToken` and a 6 digit code (or a recovery code) within 5 minutes.
-4. When the access token expires, call `POST /auth/refresh-token`. Always keep the new refresh token from the response: the old one stops working, and presenting it again later revokes the session.
+4. Or, without a password: `POST /auth/passkeys/signin/options`, pass the `options` to the browser (for example `startAuthentication({ optionsJSON: options })` from `@simplewebauthn/browser`) and send the result to `POST /auth/passkeys/signin`.
+5. When the access token expires, call `POST /auth/refresh-token`. Always keep the new refresh token from the response: the old one stops working, and presenting it again later revokes the session.
 
 ## Security Notes
 
@@ -211,6 +228,7 @@ Errors carry a stable, machine-readable `code`:
 - **Codes** for email verification and password reset are stored as HMACs keyed from `ENCRYPTION_KEY`, are single use, expire after 15 minutes and are discarded after 5 wrong attempts.
 - **Enumeration**: endpoints that take an email answer the same way whether or not the account exists. Signup still returns 409 for a taken email; that is a deliberate usability tradeoff and it is rate limited.
 - **Refresh tokens** are random, stored as SHA-256 hashes and rotated on every use. A reused token revokes its session (with a 10 second grace window for concurrent refreshes).
+- **Passkeys** require user verification and are tied to `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS`. Challenges are single use and expire after 5 minutes, which is what stops replays for synced passkeys (their signature counter is always 0); for other authenticators a counter that goes backwards is rejected as a likely clone.
 - **2FA secrets** are encrypted with AES-256-GCM. The last accepted time step is stored so a code can't be used twice.
 - **Sessions** end on logout, password reset (all sessions) and password change (all other sessions).
 - **Keep `ENCRYPTION_KEY` safe and stable**: changing it invalidates outstanding codes and makes stored 2FA secrets unreadable.

@@ -191,6 +191,7 @@ Helpers in `tests/helpers.ts`:
 | `InMemoryMailer` | Pass to `createApp({ mailer })`; `mailer.lastCode(email)` returns the last emailed code |
 | `createTestApp()` | App, in-memory mailer and outbox worker wired together; `await mailer.lastCode(email)` delivers pending jobs first |
 | `eventually(fn)` | Retries an assertion until it passes, for timing-based checks |
+| `VirtualAuthenticator` | Software WebAuthn authenticator (`tests/support`): `createCredential(options)` and `getAssertion(options)` produce real, signed responses |
 | `strongPassword`, `API` | A password that passes validation, and the `/api/v1` prefix |
 
 What good tests look like here:
