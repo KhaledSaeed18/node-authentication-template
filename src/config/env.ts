@@ -19,6 +19,12 @@ const envSchema = z.object({
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
 
+    // 32 random bytes, base64 encoded (`openssl rand -base64 32`). Used to derive keys
+    // for hashing one-time codes and encrypting 2FA secrets. Changing it invalidates both.
+    ENCRYPTION_KEY: z
+        .string()
+        .refine((value) => Buffer.from(value, 'base64').length === 32, 'ENCRYPTION_KEY must be 32 bytes, base64 encoded'),
+
     CORS_ORIGINS: csv.default(['http://localhost:3000']),
     RATE_LIMIT_ENABLED: z.stringbool().default(true),
     // Express "trust proxy" setting: false, true, a hop count, or a list of IPs/subnets

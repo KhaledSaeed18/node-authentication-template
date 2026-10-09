@@ -15,16 +15,13 @@ model User {
   email     String @unique
   password  String
   role      Role   @default(USER)
-  verificationCode String?
-  codeExpiry DateTime?
   isVerified Boolean @default(false)
-  resetPasswordCode String?
-  resetPasswordExpiry DateTime?
 
   totpSecret String?
   totpEnabled Boolean @default(false)
 
-  LoginHistory LoginHistory[]
+  LoginHistory      LoginHistory[]
+  verificationCodes VerificationCode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -52,3 +49,25 @@ model LoginHistory {
 
   @@index([userId])
 }
+
+enum CodePurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// Short-lived one-time codes sent by email. Only an HMAC of the code is stored.
+model VerificationCode {
+  id        String      @id @default(cuid())
+  userId    String
+  purpose   CodePurpose
+  codeHash  String
+  attempts  Int         @default(0)
+  expiresAt DateTime
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // At most one active code per user and purpose
+  @@unique([userId, purpose])
+}
+

@@ -11,7 +11,7 @@ import {
     NotFoundError,
     UnauthorizedError,
 } from '../../shared/errors/app-error.js';
-import { generateOTP } from '../../shared/utils/otp.js';
+import { logger } from '../../lib/logger.js';
 import type {
     ResetPasswordInput,
     Signin2FAInput,
@@ -21,8 +21,7 @@ import type {
 } from './auth.schemas.js';
 import { generateAccessToken, generateRefreshToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, verifyTOTP } from './totp.js';
-
-const CODE_TTL_MINUTES = 15;
+import { CODE_TTL_MINUTES, VerificationCodeService } from './verification-code.service.js';
 
 // Where a request came from, recorded in the login history
 export interface RequestContext {
@@ -61,15 +60,16 @@ const userNotFound = () => new NotFoundError('User not found', 'USER_NOT_FOUND')
 export class AuthService {
     constructor(
         private readonly db: PrismaClient,
-        private readonly mailer: Mailer
+        private readonly mailer: Mailer,
+        private readonly codes: VerificationCodeService
     ) {}
 
-    private codeExpiry(): Date {
-        return new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
-    }
-
-    private async sendVerificationCode(email: string, name: string, code: string) {
-        await this.mailer.send(email, verificationEmail({ appName: env.APP_NAME, name, code, minutes: CODE_TTL_MINUTES }));
+    private async sendVerificationCode(user: User) {
+        const code = await this.codes.issue(user.id, 'EMAIL_VERIFICATION');
+        await this.mailer.send(
+            user.email,
+            verificationEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
+        );
     }
 
     private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
@@ -104,21 +104,16 @@ export class AuthService {
             throw new ConflictError('User with this email already exists', 'EMAIL_TAKEN');
         }
 
-        const hashedPassword = await bcrypt.hash(password, env.SALT_ROUNDS);
-        const verificationCode = generateOTP();
-
-        await this.sendVerificationCode(email, firstName, verificationCode);
-
         const user = await this.db.user.create({
-            data: {
-                firstName,
-                lastName,
-                email,
-                password: hashedPassword,
-                verificationCode,
-                codeExpiry: this.codeExpiry(),
-            },
+            data: { firstName, lastName, email, password: await bcrypt.hash(password, env.SALT_ROUNDS) },
         });
+
+        // The account exists either way; if the email fails the user can ask for a new code
+        try {
+            await this.sendVerificationCode(user);
+        } catch (error) {
+            logger.error({ err: error, userId: user.id }, 'Failed to send the verification email');
+        }
 
         return toPublicUser(user);
     }
@@ -170,16 +165,13 @@ export class AuthService {
         if (!user) throw userNotFound();
         if (user.isVerified) throw new BadRequestError('Email already verified', 'EMAIL_ALREADY_VERIFIED');
 
-        if (!user.verificationCode || !user.codeExpiry || user.verificationCode !== code) {
-            throw new BadRequestError('Invalid verification code', 'INVALID_CODE');
-        }
-        if (new Date() > user.codeExpiry) {
-            throw new BadRequestError('Verification code has expired', 'CODE_EXPIRED');
+        if (!(await this.codes.consume(user.id, 'EMAIL_VERIFICATION', code))) {
+            throw new BadRequestError('Invalid or expired verification code', 'INVALID_CODE');
         }
 
         const verifiedUser = await this.db.user.update({
             where: { id: user.id },
-            data: { isVerified: true, verificationCode: null, codeExpiry: null },
+            data: { isVerified: true },
         });
 
         return toPublicUser(verifiedUser);
@@ -190,28 +182,17 @@ export class AuthService {
         if (!user) throw userNotFound();
         if (user.isVerified) throw new BadRequestError('Email already verified', 'EMAIL_ALREADY_VERIFIED');
 
-        const verificationCode = generateOTP();
-        await this.db.user.update({
-            where: { id: user.id },
-            data: { verificationCode, codeExpiry: this.codeExpiry() },
-        });
-
-        await this.sendVerificationCode(email, user.firstName, verificationCode);
+        await this.sendVerificationCode(user);
     }
 
     async forgotPassword(email: string): Promise<void> {
         const user = await this.db.user.findUnique({ where: { email } });
         if (!user) throw userNotFound();
 
-        const resetPasswordCode = generateOTP();
-        await this.db.user.update({
-            where: { id: user.id },
-            data: { resetPasswordCode, resetPasswordExpiry: this.codeExpiry() },
-        });
-
+        const code = await this.codes.issue(user.id, 'PASSWORD_RESET');
         await this.mailer.send(
             email,
-            passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code: resetPasswordCode, minutes: CODE_TTL_MINUTES })
+            passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
         );
     }
 
@@ -219,23 +200,13 @@ export class AuthService {
         const user = await this.db.user.findUnique({ where: { email } });
         if (!user) throw userNotFound();
 
-        if (!user.resetPasswordCode || !user.resetPasswordExpiry) {
-            throw new BadRequestError('No active reset request found', 'NO_RESET_REQUEST');
-        }
-        if (user.resetPasswordCode !== code) {
-            throw new BadRequestError('Invalid reset code', 'INVALID_CODE');
-        }
-        if (new Date() > user.resetPasswordExpiry) {
-            throw new BadRequestError('Reset code has expired', 'CODE_EXPIRED');
+        if (!(await this.codes.consume(user.id, 'PASSWORD_RESET', code))) {
+            throw new BadRequestError('Invalid or expired reset code', 'INVALID_CODE');
         }
 
         await this.db.user.update({
             where: { id: user.id },
-            data: {
-                password: await bcrypt.hash(newPassword, env.SALT_ROUNDS),
-                resetPasswordCode: null,
-                resetPasswordExpiry: null,
-            },
+            data: { password: await bcrypt.hash(newPassword, env.SALT_ROUNDS) },
         });
     }
 
