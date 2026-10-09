@@ -20,6 +20,7 @@ import type {
     SignupInput,
     VerifyEmailInput,
 } from './auth.schemas.js';
+import type { RecoveryCodeService } from './recovery-code.service.js';
 import type { SessionService } from './session.service.js';
 import { signAccessToken, signMfaToken, verifyMfaToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, openTOTPSecret, sealTOTPSecret, verifyTOTP } from './totp.js';
@@ -67,7 +68,8 @@ export class AuthService {
         private readonly db: PrismaClient,
         private readonly mailer: Mailer,
         private readonly codes: VerificationCodeService,
-        private readonly sessions: SessionService
+        private readonly sessions: SessionService,
+        private readonly recoveryCodes: RecoveryCodeService
     ) {}
 
     private async sendVerificationCode(user: User) {
@@ -123,6 +125,11 @@ export class AuthService {
             data: { totpLastUsedStep: step, totpSecret: sealTOTPSecret(secret) },
         });
         return count === 1;
+    }
+
+    // Accepts a 6 digit authenticator code or an unused recovery code
+    private async checkSecondFactor(user: User, code: string): Promise<boolean> {
+        return /^\d{6}$/.test(code) ? this.checkTOTP(user, code) : this.recoveryCodes.consume(user.id, code);
     }
 
     // Verifies the password and upgrades the stored hash if it uses older settings
@@ -333,7 +340,8 @@ export class AuthService {
         return { secret, qrCode };
     }
 
-    async verify2FA(userId: string, token: string): Promise<void> {
+    // Confirms setup with a first code, turns 2FA on and returns the recovery codes (shown once)
+    async verify2FA(userId: string, code: string): Promise<{ recoveryCodes: string[] }> {
         const user = await this.findUserById(userId);
         if (user.totpEnabled) {
             throw new BadRequestError('2FA is already enabled', 'TWO_FACTOR_ALREADY_ENABLED');
@@ -341,11 +349,26 @@ export class AuthService {
         if (!user.totpSecret) {
             throw new BadRequestError('2FA setup not initiated', 'TWO_FACTOR_NOT_INITIATED');
         }
-        if (!(await this.checkTOTP(user, token))) {
-            throw new BadRequestError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
+        if (!(await this.checkTOTP(user, code))) {
+            throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
         await this.db.user.update({ where: { id: userId }, data: { totpEnabled: true } });
+
+        return { recoveryCodes: await this.recoveryCodes.regenerate(userId) };
+    }
+
+    // Replaces the recovery codes, e.g. when they run low or may have leaked
+    async regenerateRecoveryCodes(userId: string, code: string): Promise<{ recoveryCodes: string[] }> {
+        const user = await this.findUserById(userId);
+        if (!user.totpEnabled) {
+            throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
+        }
+        if (!(await this.checkSecondFactor(user, code))) {
+            throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
+        }
+
+        return { recoveryCodes: await this.recoveryCodes.regenerate(userId) };
     }
 
     // Second step of a 2FA signin: the challenge token from signin plus a TOTP code.
@@ -358,7 +381,7 @@ export class AuthService {
 
         await this.assertNotLocked(user.id);
 
-        if (!(await this.checkTOTP(user, code))) {
+        if (!(await this.checkSecondFactor(user, code))) {
             await this.recordLoginAttempt(user.id, context, false);
             throw new UnauthorizedError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
@@ -368,18 +391,19 @@ export class AuthService {
         return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
     }
 
-    async disable2FA(userId: string, token: string): Promise<void> {
+    async disable2FA(userId: string, code: string): Promise<void> {
         const user = await this.findUserById(userId);
         if (!user.totpEnabled || !user.totpSecret) {
             throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
         }
-        if (!(await this.checkTOTP(user, token))) {
-            throw new BadRequestError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
+        if (!(await this.checkSecondFactor(user, code))) {
+            throw new BadRequestError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
         await this.db.user.update({
             where: { id: userId },
             data: { totpSecret: null, totpEnabled: false, totpLastUsedStep: null },
         });
+        await this.recoveryCodes.clear(userId);
     }
 }

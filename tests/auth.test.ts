@@ -156,9 +156,13 @@ const nextTotpWindow = () => prisma.user.updateMany({ data: { totpLastUsedStep: 
 const enable2FA = async (bearer: string) => {
     const setup = await request(app).post(`${auth}/2fa/setup`).set('Authorization', bearer).expect(200);
     const { secret } = setup.body.data;
-    await request(app).post(`${auth}/2fa/verify`).set('Authorization', bearer).send({ token: generateSync({ secret }) }).expect(200);
+    const verified = await request(app)
+        .post(`${auth}/2fa/verify`)
+        .set('Authorization', bearer)
+        .send({ code: generateSync({ secret }) })
+        .expect(200);
     await nextTotpWindow();
-    return secret as string;
+    return { secret: secret as string, recoveryCodes: verified.body.data.recoveryCodes as string[] };
 };
 
 describe('two-factor authentication', () => {
@@ -171,11 +175,11 @@ describe('two-factor authentication', () => {
         const { secret, qrCode } = setup.body.data;
         expect(qrCode).toMatch(/^data:image\/png;base64,/);
 
-        await request(app).post(`${auth}/2fa/verify`).set('Authorization', bearer).send({ token: '000000' }).expect(400);
+        await request(app).post(`${auth}/2fa/verify`).set('Authorization', bearer).send({ code: '000000' }).expect(400);
         await request(app)
             .post(`${auth}/2fa/verify`)
             .set('Authorization', bearer)
-            .send({ token: generateSync({ secret }) })
+            .send({ code: generateSync({ secret }) })
             .expect(200);
         await nextTotpWindow();
 
@@ -195,7 +199,7 @@ describe('two-factor authentication', () => {
         await request(app)
             .post(`${auth}/2fa/disable`)
             .set('Authorization', bearer)
-            .send({ token: generateSync({ secret }) })
+            .send({ code: generateSync({ secret }) })
             .expect(200);
         await signin(email, password).expect(200);
     });
@@ -203,7 +207,7 @@ describe('two-factor authentication', () => {
     it('stores the TOTP secret encrypted', async () => {
         const { email, password } = await createVerifiedUser();
         const { body } = await signin(email, password).expect(200);
-        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+        const { secret } = await enable2FA(`Bearer ${body.data.accessToken}`);
 
         const user = await prisma.user.findUniqueOrThrow({ where: { email } });
         expect(user.totpSecret).toMatch(/^v1:/);
@@ -213,7 +217,7 @@ describe('two-factor authentication', () => {
     it('rejects a TOTP code that was already used', async () => {
         const { email, password } = await createVerifiedUser();
         const { body } = await signin(email, password).expect(200);
-        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+        const { secret } = await enable2FA(`Bearer ${body.data.accessToken}`);
 
         const { mfaToken } = (await signin(email, password).expect(200)).body.data;
         const code = generateSync({ secret });
@@ -239,7 +243,7 @@ describe('two-factor authentication', () => {
     it('only accepts a challenge token from a correct password step', async () => {
         const { email, password } = await createVerifiedUser();
         const { body } = await signin(email, password).expect(200);
-        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+        const { secret } = await enable2FA(`Bearer ${body.data.accessToken}`);
 
         // An access token is not a challenge token
         const forged = await request(app)
@@ -254,7 +258,7 @@ describe('two-factor authentication', () => {
     it('locks the account after too many wrong codes', async () => {
         const { email, password } = await createVerifiedUser();
         const { body } = await signin(email, password).expect(200);
-        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+        const { secret } = await enable2FA(`Bearer ${body.data.accessToken}`);
         const { mfaToken } = (await signin(email, password).expect(200)).body.data;
 
         for (let i = 0; i < 5; i++) {
@@ -265,5 +269,55 @@ describe('two-factor authentication', () => {
             .send({ mfaToken, code: generateSync({ secret }) })
             .expect(429);
         expect(locked.body.code).toBe('ACCOUNT_LOCKED');
+    });
+
+    it('returns 10 recovery codes when 2FA is enabled, each usable once to sign in', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const { recoveryCodes } = await enable2FA(`Bearer ${body.data.accessToken}`);
+
+        expect(recoveryCodes).toHaveLength(10);
+        expect(new Set(recoveryCodes).size).toBe(10);
+        expect(recoveryCodes[0]).toMatch(/^[a-z2-9]{4}-[a-z2-9]{4}$/);
+
+        const first = (await signin(email, password).expect(200)).body.data.mfaToken;
+        await request(app).post(`${auth}/2fa/signin`).send({ mfaToken: first, code: recoveryCodes[0].toUpperCase() }).expect(200);
+
+        const second = (await signin(email, password).expect(200)).body.data.mfaToken;
+        await request(app).post(`${auth}/2fa/signin`).send({ mfaToken: second, code: recoveryCodes[0] }).expect(401);
+
+        const stored = await prisma.recoveryCode.findMany();
+        expect(stored.map((c) => c.codeHash)).not.toContain(recoveryCodes[1]);
+    });
+
+    it('regenerates recovery codes and invalidates the old ones', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const bearer = `Bearer ${body.data.accessToken}`;
+        const { secret, recoveryCodes: oldCodes } = await enable2FA(bearer);
+
+        const res = await request(app)
+            .post(`${auth}/2fa/recovery-codes`)
+            .set('Authorization', bearer)
+            .send({ code: generateSync({ secret }) })
+            .expect(200);
+        expect(res.body.data.recoveryCodes).toHaveLength(10);
+
+        const { mfaToken } = (await signin(email, password).expect(200)).body.data;
+        await request(app).post(`${auth}/2fa/signin`).send({ mfaToken, code: oldCodes[0] }).expect(401);
+        await request(app).post(`${auth}/2fa/signin`).send({ mfaToken, code: res.body.data.recoveryCodes[0] }).expect(200);
+    });
+
+    it('can disable 2FA with a recovery code when the authenticator is lost', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const bearer = `Bearer ${body.data.accessToken}`;
+        const { recoveryCodes } = await enable2FA(bearer);
+
+        await request(app).post(`${auth}/2fa/disable`).set('Authorization', bearer).send({ code: recoveryCodes[3] }).expect(200);
+
+        expect(await prisma.recoveryCode.count()).toBe(0);
+        const res = await signin(email, password).expect(200);
+        expect(res.body.data.accessToken).toEqual(expect.any(String));
     });
 });

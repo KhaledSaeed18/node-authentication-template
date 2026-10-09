@@ -23,6 +23,7 @@ import {
     disable2FASchema,
     forgotPasswordSchema,
     refreshTokenSchema,
+    regenerateRecoveryCodesSchema,
     resendVerificationSchema,
     resetPasswordSchema,
     sessionIdParamsSchema,
@@ -74,6 +75,13 @@ export const createAuthRouter = (controller: AuthController, authenticate: Reque
     router.post('/2fa/setup', authenticate, setup2FALimiter, controller.setup2FA);
     router.post('/2fa/verify', authenticate, verify2FALimiter, sanitizeRequestBody, validate(verify2FASchema), controller.verify2FA);
     router.post('/2fa/signin', signin2FALimiter, sanitizeRequestBody, validate(signin2FASchema), controller.signin2FA);
+    router.post(
+        '/2fa/recovery-codes',
+        authenticate,
+        verify2FALimiter,
+        validate(regenerateRecoveryCodesSchema),
+        controller.regenerateRecoveryCodes
+    );
     router.post('/2fa/disable', authenticate, disable2FALimiter, sanitizeRequestBody, validate(disable2FASchema), controller.disable2FA);
 
     return router;

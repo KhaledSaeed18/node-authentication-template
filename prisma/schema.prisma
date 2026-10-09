@@ -26,6 +26,7 @@ model User {
   LoginHistory      LoginHistory[]
   verificationCodes VerificationCode[]
   sessions          Session[]
+  recoveryCodes     RecoveryCode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -93,5 +94,18 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// One-time backup codes for 2FA, for when the authenticator app is lost. Stored as HMACs.
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
 }
 

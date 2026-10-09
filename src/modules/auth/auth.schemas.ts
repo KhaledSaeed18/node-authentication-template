@@ -96,31 +96,35 @@ export const resetPasswordSchema = z.object({
     newPassword: passwordField,
 });
 
-// Verify & Enable 2FA schema
+// 6 digit code from the authenticator app
+const totpCode = z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Code must be 6 digits");
+
+// Authenticator code or one of the recovery codes (xxxx-xxxx)
+const secondFactorCode = z
+    .string()
+    .trim()
+    .regex(/^(\d{6}|[a-zA-Z0-9]{4}-?[a-zA-Z0-9]{4})$/, "Enter the 6 digit code or a recovery code");
+
+// Confirms 2FA setup with a code from the newly added authenticator
 export const verify2FASchema = z.object({
-    token: z.string()
-        .trim()
-        .min(6, "Token must be at least 6 characters")
-        .max(6, "Token must be at most 6 characters")
-        .regex(/^\d+$/, "Token must contain only digits"),
+    code: totpCode,
 });
 
 // Second step of a 2FA signin
 export const signin2FASchema = z.object({
     mfaToken: z.string().min(1, "mfaToken is required"),
-    code: z.string()
-        .trim()
-        .length(6, "Code must be 6 digits")
-        .regex(/^\d+$/, "Code must contain only digits"),
+    code: secondFactorCode,
 });
 
-// Disable 2FA schema
 export const disable2FASchema = z.object({
-    token: z.string()
-        .trim()
-        .min(6, "Token must be at least 6 characters")
-        .max(6, "Token must be at most 6 characters")
-        .regex(/^\d+$/, "Token must contain only digits"),
+    code: secondFactorCode,
+});
+
+export const regenerateRecoveryCodesSchema = z.object({
+    code: secondFactorCode,
 });
 
 export const changePasswordSchema = z
@@ -148,3 +152,4 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type Verify2FAInput = z.infer<typeof verify2FASchema>;
 export type Signin2FAInput = z.infer<typeof signin2FASchema>;
 export type Disable2FAInput = z.infer<typeof disable2FASchema>;
+export type RegenerateRecoveryCodesInput = z.infer<typeof regenerateRecoveryCodesSchema>;

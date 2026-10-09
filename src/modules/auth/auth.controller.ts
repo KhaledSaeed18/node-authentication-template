@@ -92,8 +92,13 @@ export class AuthController {
     };
 
     verify2FA = async (req: Request, res: Response) => {
-        await this.authService.verify2FA(currentUser(req).userId, req.body.token);
-        sendSuccess(res, 200, '2FA enabled successfully');
+        const data = await this.authService.verify2FA(currentUser(req).userId, req.body.code);
+        sendSuccess(res, 200, '2FA enabled. Store the recovery codes somewhere safe, they are only shown once.', data);
+    };
+
+    regenerateRecoveryCodes = async (req: Request, res: Response) => {
+        const data = await this.authService.regenerateRecoveryCodes(currentUser(req).userId, req.body.code);
+        sendSuccess(res, 200, 'New recovery codes generated. The old ones no longer work.', data);
     };
 
     signin2FA = async (req: Request, res: Response) => {
@@ -102,7 +107,7 @@ export class AuthController {
     };
 
     disable2FA = async (req: Request, res: Response) => {
-        await this.authService.disable2FA(currentUser(req).userId, req.body.token);
+        await this.authService.disable2FA(currentUser(req).userId, req.body.code);
         sendSuccess(res, 200, '2FA disabled successfully');
     };
 }
