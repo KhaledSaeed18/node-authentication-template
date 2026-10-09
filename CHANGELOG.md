@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- OpenID Connect provider: authorization code flow with PKCE, refresh tokens, ID tokens signed with the ES256 keys, userinfo and discovery. Headless: the front end's login page (`OIDC_LOGIN_URL`) completes authorization requests. Admin endpoints to register clients (`/oauth-clients`). New settings `OIDC_ISSUER` and `OIDC_LOGIN_URL`; run `yarn db:deploy` for the new tables.
+
 ## 3.0.0
 
 Passkeys, a transactional outbox, ES256 access tokens with a public JWKS, an account activity log with security alerts, OpenTelemetry, security automation in CI, and design documents (architecture, ADRs, threat model).

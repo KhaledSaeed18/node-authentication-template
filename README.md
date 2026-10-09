@@ -30,6 +30,12 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 - User verification required, so a passkey sign-in counts as two factors
 - Single-use challenges, clone detection with the signature counter, passkey management (list, rename, remove)
 
+**OpenID Connect provider**
+
+- Other apps can offer "Sign in with ..." through this service: authorization code flow with PKCE, ID tokens, userinfo, refresh tokens, discovery
+- Confidential and public clients, consent for third-party clients, admin client registration
+- Verified with `openid-client`, a certified relying party library
+
 **Two-factor authentication**
 
 - TOTP (Google Authenticator, 1Password, Authy, ...) with QR code setup
@@ -128,6 +134,8 @@ All settings are environment variables, validated at startup: the server refuses
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | `15m` / `7d` | Token lifetimes (`s`, `m`, `h`, `d`) |
 | `SIGNING_KEY_ROTATION_DAYS` | `30` | Age at which a new access token signing key is created |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma separated list of allowed origins |
+| `OIDC_ISSUER` | `http://localhost:4000` | Public URL of this service, the `iss` of ID tokens |
+| `OIDC_LOGIN_URL` | `http://localhost:3000/login` | Front-end page that signs users in during an authorization request |
 | `WEBAUTHN_RP_ID` | `localhost` | Domain passkeys are bound to (e.g. `example.com`) |
 | `WEBAUTHN_ORIGINS` | `http://localhost:3000` | Comma separated front-end origins allowed to use passkeys |
 | `TRUST_PROXY` | `false` | Express trust proxy setting, needed behind a load balancer for correct client IPs |
@@ -199,10 +207,34 @@ The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json
 | PATCH | `/users/me` | yes | Update first/last name |
 | GET | `/users/me/activity` | yes | Account activity (`?limit=&cursor=`) |
 | GET | `/users/:userId/activity` | admin | A user's account activity |
+| GET, POST | `/oauth-clients` | admin | List and register OpenID Connect clients |
+| DELETE | `/oauth-clients/:clientId` | admin | Remove a client |
 | GET | `/users` | admin | List users (`?limit=&cursor=`) |
 | GET | `/.well-known/jwks.json` | | Public keys for verifying access tokens |
 | GET | `/health` | | Liveness probe |
 | GET | `/ready` | | Readiness probe (database, Redis, signing keys) |
+
+### OpenID Connect provider
+
+The service is also an OpenID Connect provider (authorization code flow with PKCE), so other applications can sign their users in with it. Protocol endpoints sit at the issuer root (`OIDC_ISSUER`):
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /.well-known/openid-configuration` | Discovery document |
+| `GET /oauth/authorize` | Start an authorization request |
+| `GET /oauth/interactions/:id` | What the login page shows (client name, scopes) |
+| `POST /oauth/interactions/:id/complete` | Called by the login page once the user is signed in (`{ consent: true }` for third-party clients) |
+| `POST /oauth/token` | `authorization_code` and `refresh_token` grants |
+| `GET, POST /oauth/userinfo` | Claims for an access token issued to a client |
+
+The provider is headless, so your front end owns the login page:
+
+1. An admin registers the client: `POST /api/v1/oauth-clients` with `name`, `redirectUris`, `scopes`, `confidential` and `firstParty`. The secret is returned once.
+2. The client sends the browser to `/oauth/authorize` with `response_type=code`, `scope=openid ...`, a PKCE `code_challenge` (S256), `state` and `nonce`.
+3. The service redirects to `OIDC_LOGIN_URL?interaction=<id>`. The page signs the user in with the regular API (password, 2FA or passkey), optionally shows `GET /oauth/interactions/<id>` for consent, then calls `POST /oauth/interactions/<id>/complete` with the user's access token and sends the browser to the returned `redirectTo`.
+4. The client exchanges the code at `/oauth/token` and gets an `access_token`, an `id_token` and, with the `offline_access` scope, a `refresh_token`.
+
+Any standard OpenID Connect library works on the client side. Access tokens issued to a client are addressed to that client (`aud` = client id), so they are accepted by `/oauth/userinfo` and the client's own APIs, but not by this service's account API.
 
 ### Verifying tokens in other services
 
@@ -259,6 +291,7 @@ Errors carry a stable, machine-readable `code`:
 - **Enumeration**: endpoints that take an email answer the same way whether or not the account exists. Signup still returns 409 for a taken email; that is a deliberate usability tradeoff and it is rate limited.
 - **Refresh tokens** are random, stored as SHA-256 hashes and rotated on every use. A reused token revokes its session (with a 10 second grace window for concurrent refreshes).
 - **Passkeys** require user verification and are tied to `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS`. Challenges are single use and expire after 5 minutes, which is what stops replays for synced passkeys (their signature counter is always 0); for other authenticators a counter that goes backwards is rejected as a likely clone.
+- **OpenID Connect**: PKCE (S256) is required for every client, redirect URIs must match exactly and are never redirected to when unregistered, authorization responses carry `iss` (RFC 9207), codes are single use and a reused code revokes the session issued from it, and client tokens can't reach the account API.
 - **Access tokens** are signed with ES256 keys that rotate automatically; verification pins the algorithm and resolves the key by `kid`, so unsigned or HS256-forged tokens are rejected. A signing key that can't be decrypted makes the instance fail closed and report not ready.
 - **2FA secrets** are encrypted with AES-256-GCM. The last accepted time step is stored so a code can't be used twice.
 - **Sessions** end on logout, password reset (all sessions) and password change (all other sessions).
@@ -284,6 +317,7 @@ Errors carry a stable, machine-readable `code`:
 │   │   ├── users                   # profile and admin endpoints
 │   │   ├── health                  # liveness and readiness probes
 │   │   ├── maintenance             # data retention job
+│   │   ├── oidc                    # OpenID Connect provider
 │   │   └── outbox                  # transactional outbox and its worker
 │   ├── scripts                     # entry points for the cleanup job and a standalone worker
 │   ├── shared                      # errors, middlewares, crypto/password utils, validation
@@ -340,7 +374,7 @@ Then open Grafana at <http://localhost:3001>. Custom metrics:
 ## Design Documents
 
 - [Architecture](docs/architecture.md): components, flows (sign in, refresh rotation, passkeys, outbox) and data model, with diagrams
-- [Architecture decision records](docs/adr/README.md): why opaque rotating refresh tokens, Argon2id, an outbox in PostgreSQL, ES256 with JWKS, passkeys as a full factor, and more
+- [Architecture decision records](docs/adr/README.md): why opaque rotating refresh tokens, Argon2id, an outbox in PostgreSQL, ES256 with JWKS, passkeys as a full factor, a headless OpenID Connect provider, and more
 - [Threat model](docs/threat-model.md): STRIDE analysis with mitigations, the tests that cover them, and residual risks
 
 ## Upgrading from 1.x
