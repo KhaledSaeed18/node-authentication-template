@@ -1,5 +1,6 @@
 import { PASSWORD_RESET_EMAIL_TEMPLATE, VERIFICATION_EMAIL_TEMPLATE } from "../constants/emailTemplates.js";
 import transporter from "./nodemailer.config.js";
+import { env } from "../config/env.js";
 
 // Send verification email
 export const sendVerificationEmail = async (email: string, otpCode: string, name: string) => {
@@ -7,7 +8,7 @@ export const sendVerificationEmail = async (email: string, otpCode: string, name
 
     try {
         const mailOptions = {
-            from: `<${process.env.USER_EMAIL}>`,
+            from: `<${env.USER_EMAIL}>`,
             to: recipient[0].email,
             subject: "Verify your email",
             html: VERIFICATION_EMAIL_TEMPLATE
@@ -27,7 +28,7 @@ export const sendPasswordResetEmail = async (email: string, resetCode: string, n
 
     try {
         const mailOptions = {
-            from: `<${process.env.USER_EMAIL}>`,
+            from: `<${env.USER_EMAIL}>`,
             to: recipient[0].email,
             subject: "Reset your password",
             html: PASSWORD_RESET_EMAIL_TEMPLATE

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import type { NextFunction, Request, Response } from "express";
+import { env } from "../config/env.js";
 
 interface ValidationError {
   field?: string;
@@ -50,7 +51,7 @@ class ErrorMiddleware {
       }
     });
 
-    if (process.env.NODE_ENV === "development") {
+    if (env.NODE_ENV === "development") {
       errorResponse.stack = err.stack;
     }
 

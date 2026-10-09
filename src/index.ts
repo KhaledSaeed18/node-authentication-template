@@ -1,20 +1,16 @@
-import 'dotenv/config';
 import express, { type Express, type Request, type Response } from 'express';
 import cors from "cors";
 import { ErrorMiddleware } from './middlewares/error.middleware.js';
 import AuthRouter from './api/auth/auth.routes.js';
 import { securityHeaders } from './middlewares/securityHeaders.middleware.js';
+import { env } from './config/env.js';
 
 const app: Express = express();
-
-const allowedOrigins = [
-    "http://localhost:3000",
-];
 
 // CORS middleware
 app.use(
     cors({
-        origin: allowedOrigins,
+        origin: env.CORS_ORIGINS,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
         allowedHeaders: ["Content-Type", "Authorization"],
     })
@@ -26,9 +22,8 @@ app.use(securityHeaders);
 // Body parser middleware
 app.use(express.json());
 
-const port = process.env.PORT;
-const version = process.env.API_VERSION!;
-const baseUrl = `${process.env.BASE_URL!}/${version}`;
+const port = env.PORT;
+const baseUrl = `${env.BASE_URL}/${env.API_VERSION}`;
 
 // Authentication routes
 const authRouter = new AuthRouter();

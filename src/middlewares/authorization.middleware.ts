@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { errorHandler } from '../utils/errorHandler.js';
 import type { Role } from '../generated/prisma/enums.js';
+import { env } from '../config/env.js';
 
 export type AuthTokenPayload = JwtPayload & { userId: string; role: Role };
 
@@ -21,7 +22,7 @@ export const authorize = (req: Request, res: Response, next: NextFunction): void
     const token = authHeader.split(' ')[1];
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as AuthTokenPayload;
+        const decoded = jwt.verify(token, env.JWT_SECRET) as AuthTokenPayload;
         req.user = decoded;
 
         next();

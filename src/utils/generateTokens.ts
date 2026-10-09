@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import type { Role } from '../generated/prisma/enums.js';
+import { env } from '../config/env.js';
 
 interface Payload {
     userId: string;
@@ -9,7 +10,7 @@ interface Payload {
 // Generate access token
 export const generateAccessToken = (userId: string, role: Role): string => {
     const payload: Payload = { userId, role };
-    const accessToken = jwt.sign(payload, process.env.JWT_SECRET as string, {
+    const accessToken = jwt.sign(payload, env.JWT_SECRET, {
         expiresIn: '20m',
     });
 
@@ -19,7 +20,7 @@ export const generateAccessToken = (userId: string, role: Role): string => {
 // Generate refresh token
 export const generateRefreshToken = (userId: string, role: Role): string => {
     const payload: Payload = { userId, role };
-    const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET as string, {
+    const refreshToken = jwt.sign(payload, env.JWT_REFRESH_SECRET, {
         expiresIn: '7d',
     });
 

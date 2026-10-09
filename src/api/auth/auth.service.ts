@@ -6,10 +6,11 @@ import jwt from "jsonwebtoken";
 import { generateOTP } from "../../utils/generateOTP.js";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../../mails/email.js";
 import { generateQRCode, generateTOTPSecret, verifyTOTP } from "../../utils/totp.js";
+import { env } from "../../config/env.js";
 
 export class AuthService {
   private prisma = prisma;
-  private saltRounds = parseInt(process.env.SALT_ROUNDS || '10');
+  private saltRounds = env.SALT_ROUNDS;
 
   // Helper method to generate code expiry
   private generateCodeExpiry(): Date {
@@ -207,7 +208,7 @@ export class AuthService {
     try {
       const decoded = jwt.verify(
         refreshToken,
-        process.env.JWT_REFRESH_SECRET as string
+        env.JWT_REFRESH_SECRET
       ) as jwt.JwtPayload;
 
       const newAccessToken = generateAccessToken(decoded.userId, decoded.role);
