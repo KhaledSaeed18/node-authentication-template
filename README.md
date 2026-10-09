@@ -20,7 +20,7 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 
 - Signup with email verification (6 digit code)
 - Sign in with email and password, case-insensitive emails
-- Forgot / reset password, change password
+- Forgot / reset password, change password, change email address (confirmed by a code sent to the new address)
 - Profile endpoints and an admin-only user list (role based access control)
 - Self-service data export and account deletion (GDPR rights of access and erasure)
 
@@ -210,6 +210,8 @@ The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json
 | PATCH | `/users/me` | yes | Update first/last name |
 | DELETE | `/users/me` | yes | Delete the account (password, plus a 2FA code when enabled) |
 | GET | `/users/me/export` | yes | Download all data stored about you |
+| POST | `/users/me/email` | yes | Change the email address: sends a code to the new one |
+| POST | `/users/me/email/confirm` | yes | Confirm it (old address is notified, other sessions signed out) |
 | GET | `/users/me/activity` | yes | Account activity (`?limit=&cursor=`) |
 | GET | `/users/:userId/activity` | admin | A user's account activity |
 | GET, POST | `/oauth-clients` | admin | List and register OpenID Connect clients |

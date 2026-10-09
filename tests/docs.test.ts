@@ -14,7 +14,7 @@ describe('API docs', () => {
 
         expect(res.body.openapi).toBe('3.1.0');
         expect(res.body.info.version).toBe(JSON.parse(readFileSync("package.json", "utf8")).version);
-        expect(Object.keys(res.body.paths)).toHaveLength(31);
+        expect(Object.keys(res.body.paths)).toHaveLength(33);
         expect(res.body.paths['/auth/signin'].post.requestBody).toBeDefined();
         expect(res.body.components.securitySchemes.bearerAuth.scheme).toBe('bearer');
     });

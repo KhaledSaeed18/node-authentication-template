@@ -22,7 +22,7 @@ import {
     verifyEmailSchema,
 } from '../modules/auth/auth.schemas.js';
 import { clientIdParamsSchema, createClientSchema } from '../modules/oidc/oidc.schemas.js';
-import { deleteAccountSchema } from '../modules/auth/auth.schemas.js';
+import { confirmEmailChangeSchema, deleteAccountSchema, requestEmailChangeSchema } from '../modules/auth/auth.schemas.js';
 import { updateProfileSchema, userIdParamsSchema } from '../modules/users/users.schemas.js';
 import { paginationQuerySchema } from '../shared/validation/pagination.js';
 
@@ -434,6 +434,25 @@ const paths: ZodOpenApiPathsObject = {
             summary: 'Remove a client and everything issued to it (ADMIN only)',
             requestParams: { path: clientIdParamsSchema },
             responses: { '200': success('Removed'), '404': error('Client not found') },
+        }),
+    },
+    '/users/me/email': {
+        post: operation({
+            ...authenticated,
+            tags: ['Users'],
+            summary: 'Start an email change: sends a code to the new address',
+            description: 'Requires the password. Answers the same whether or not the address is available.',
+            requestBody: json(requestEmailChangeSchema),
+            responses: { '200': success('Request accepted') },
+        }),
+    },
+    '/users/me/email/confirm': {
+        post: operation({
+            ...authenticated,
+            tags: ['Users'],
+            summary: 'Confirm the new address with the code (signs out other sessions)',
+            requestBody: json(confirmEmailChangeSchema),
+            responses: { '200': success('Email changed', z.object({ email: z.email() })), '400': error('Invalid or expired code') },
         }),
     },
     '/users/me/export': {
