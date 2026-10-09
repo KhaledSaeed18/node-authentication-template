@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: auth
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -20,15 +20,15 @@ services:
   mailpit:
     image: axllent/mailpit
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
 
   # Applies pending migrations, then exits
   migrate:
     build:
       context: .
-      target: deps
-    command: yarn db:deploy
+      target: runtime
+    command: ["node_modules/.bin/prisma", "migrate", "deploy"]
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/auth
     depends_on:
@@ -40,11 +40,12 @@ services:
       context: .
       target: runtime
     ports:
-      - "4000:4000"
+      - "${API_PORT:-4000}:4000"
     environment:
       PORT: 4000
       DATABASE_URL: postgresql://postgres:postgres@db:5432/auth
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (at least 32 characters)}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY (openssl rand -base64 32)}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       MAIL_TRANSPORT: smtp
       SMTP_HOST: mailpit
