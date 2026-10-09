@@ -9,6 +9,7 @@ import {
     ConflictError,
     ForbiddenError,
     NotFoundError,
+    TooManyRequestsError,
     UnauthorizedError,
 } from '../../shared/errors/app-error.js';
 import { logger } from '../../lib/logger.js';
@@ -70,6 +71,14 @@ export class AuthService {
             user.email,
             verificationEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
         );
+    }
+
+    // Fire and forget; failures (including the resend cooldown) are only logged
+    private inBackground(task: string, work: () => Promise<void>) {
+        work().catch((error) => {
+            if (error instanceof TooManyRequestsError) return;
+            logger.error({ err: error }, `Background task failed: ${task}`);
+        });
     }
 
     private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
@@ -160,12 +169,12 @@ export class AuthService {
         }
     }
 
+    // Unknown email, already verified and wrong code all get the same answer,
+    // so this endpoint can't be used to find out which emails have an account
     async verifyEmail({ email, code }: VerifyEmailInput): Promise<PublicUser> {
         const user = await this.db.user.findUnique({ where: { email } });
-        if (!user) throw userNotFound();
-        if (user.isVerified) throw new BadRequestError('Email already verified', 'EMAIL_ALREADY_VERIFIED');
 
-        if (!(await this.codes.consume(user.id, 'EMAIL_VERIFICATION', code))) {
+        if (!user || user.isVerified || !(await this.codes.consume(user.id, 'EMAIL_VERIFICATION', code))) {
             throw new BadRequestError('Invalid or expired verification code', 'INVALID_CODE');
         }
 
@@ -177,30 +186,33 @@ export class AuthService {
         return toPublicUser(verifiedUser);
     }
 
+    // Always resolves the same way whether or not the email has an account.
+    // The work runs in the background so response times don't give it away either.
     async resendVerificationCode(email: string): Promise<void> {
-        const user = await this.db.user.findUnique({ where: { email } });
-        if (!user) throw userNotFound();
-        if (user.isVerified) throw new BadRequestError('Email already verified', 'EMAIL_ALREADY_VERIFIED');
-
-        await this.sendVerificationCode(user);
+        this.inBackground('resend verification code', async () => {
+            const user = await this.db.user.findUnique({ where: { email } });
+            if (user && !user.isVerified) await this.sendVerificationCode(user);
+        });
     }
 
+    // Same idea as resendVerificationCode: no way to tell if the account exists
     async forgotPassword(email: string): Promise<void> {
-        const user = await this.db.user.findUnique({ where: { email } });
-        if (!user) throw userNotFound();
+        this.inBackground('send password reset code', async () => {
+            const user = await this.db.user.findUnique({ where: { email } });
+            if (!user) return;
 
-        const code = await this.codes.issue(user.id, 'PASSWORD_RESET');
-        await this.mailer.send(
-            email,
-            passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
-        );
+            const code = await this.codes.issue(user.id, 'PASSWORD_RESET');
+            await this.mailer.send(
+                email,
+                passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
+            );
+        });
     }
 
     async resetPassword({ email, code, newPassword }: ResetPasswordInput): Promise<void> {
         const user = await this.db.user.findUnique({ where: { email } });
-        if (!user) throw userNotFound();
 
-        if (!(await this.codes.consume(user.id, 'PASSWORD_RESET', code))) {
+        if (!user || !(await this.codes.consume(user.id, 'PASSWORD_RESET', code))) {
             throw new BadRequestError('Invalid or expired reset code', 'INVALID_CODE');
         }
 

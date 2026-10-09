@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
 import type { MailContent, Mailer } from '../src/mail/mailer.js';
-import { API, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
+import { API, eventually, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
 
 const mailer = new InMemoryMailer();
 const app = createApp({ mailer });
@@ -64,11 +64,12 @@ describe('one-time codes', () => {
         await request(app).post(`${auth}/verify-email`).send({ email, code }).expect(400);
     });
 
-    it('enforces a cooldown between codes', async () => {
+    it('does not send a new code during the cooldown, without telling the client', async () => {
         await signup().expect(201);
 
-        const res = await request(app).post(`${auth}/resend-verification`).send({ email }).expect(429);
-        expect(res.body.code).toBe('CODE_COOLDOWN');
+        await request(app).post(`${auth}/resend-verification`).send({ email }).expect(200);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(mailer.sent).toHaveLength(1);
     });
 
     it('still creates the account when the email cannot be sent', async () => {
@@ -82,3 +83,42 @@ describe('one-time codes', () => {
         expect(await prisma.user.count({ where: { email } })).toBe(1);
     });
 });
+
+describe('account enumeration', () => {
+    it('answers forgot-password the same way for unknown emails', async () => {
+        await signup().expect(201);
+
+        const known = await request(app).post(`${auth}/forgot-password`).send({ email }).expect(200);
+        const unknown = await request(app).post(`${auth}/forgot-password`).send({ email: 'nobody@acme.io' }).expect(200);
+
+        expect(unknown.body).toEqual(known.body);
+        await eventually(() => expect(mailer.sent.some((m) => m.to === email && m.content.subject.includes('Reset'))).toBe(true));
+        expect(mailer.sent.some((m) => m.to === 'nobody@acme.io')).toBe(false);
+    });
+
+    it('answers resend-verification the same way for unknown emails', async () => {
+        const known = await request(app).post(`${auth}/resend-verification`).send({ email }).expect(200);
+        const unknown = await request(app).post(`${auth}/resend-verification`).send({ email: 'nobody@acme.io' }).expect(200);
+
+        expect(unknown.body).toEqual(known.body);
+    });
+
+    it('gives the same error for an unknown email and a wrong code', async () => {
+        await signup().expect(201);
+        const code = mailer.lastCode(email);
+
+        const wrong = await request(app).post(`${auth}/verify-email`).send({ email, code: wrongCode(code) }).expect(400);
+        const unknown = await request(app)
+            .post(`${auth}/verify-email`)
+            .send({ email: 'nobody@acme.io', code })
+            .expect(400);
+        expect(unknown.body).toEqual(wrong.body);
+
+        const reset = await request(app)
+            .post(`${auth}/reset-password`)
+            .send({ email: 'nobody@acme.io', code, newPassword: 'An0ther$ecretPass' })
+            .expect(400);
+        expect(reset.body.code).toBe('INVALID_CODE');
+    });
+});
+

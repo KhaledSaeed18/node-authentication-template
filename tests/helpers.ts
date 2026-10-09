@@ -37,3 +37,16 @@ export class InMemoryMailer implements Mailer {
         this.sent.length = 0;
     }
 }
+
+// Retries an assertion until it passes, for work that finishes in the background
+export const eventually = async <T>(check: () => T | Promise<T>, timeoutMs = 2000): Promise<T> => {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+        try {
+            return await check();
+        } catch (error) {
+            if (Date.now() > deadline) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+    }
+};

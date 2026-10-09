@@ -3,7 +3,7 @@ import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
-import { API, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
+import { API, eventually, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
 
 const mailer = new InMemoryMailer();
 const app = createApp({ mailer });
@@ -133,7 +133,7 @@ describe('password reset', () => {
     it('resets the password with the emailed code', async () => {
         const { email, password } = await createVerifiedUser();
         await request(app).post(`${auth}/forgot-password`).send({ email }).expect(200);
-        const code = mailer.lastCode(email, 'Reset');
+        const code = await eventually(() => mailer.lastCode(email, 'Reset'));
 
         const newPassword = 'An0ther$ecretPass';
         await request(app).post(`${auth}/reset-password`).send({ email, code, newPassword }).expect(200);

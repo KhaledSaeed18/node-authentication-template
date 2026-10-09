@@ -52,12 +52,12 @@ export class AuthController {
 
     resendVerificationCode = async (req: Request, res: Response) => {
         await this.authService.resendVerificationCode(req.body.email);
-        sendSuccess(res, 200, 'Verification code resent successfully');
+        sendSuccess(res, 200, 'If the account exists and is not verified yet, a new code has been sent');
     };
 
     forgotPassword = async (req: Request, res: Response) => {
         await this.authService.forgotPassword(req.body.email);
-        sendSuccess(res, 200, 'Password reset instructions sent to your email');
+        sendSuccess(res, 200, 'If an account exists for this email, a reset code has been sent');
     };
 
     resetPassword = async (req: Request, res: Response) => {
