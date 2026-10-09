@@ -67,7 +67,12 @@ export default class AuthController {
   // Get login history controller
   async getLoginHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = req.user?.id as string;
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        next(errorHandler(401, "Unauthorized"));
+        return;
+      }
 
       const loginHistory = await this.authService.getLoginHistory(userId);
 
