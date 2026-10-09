@@ -309,6 +309,11 @@ export class AuthService {
 
     // Rotates the refresh token and issues a new access token with the user's current role
     async refresh(refreshToken: string, context?: RequestContext): Promise<{ accessToken: string; refreshToken: string }> {
+        // A session that belongs to an OpenID Connect client can only be refreshed by that
+        // client, at /oauth/token. Checked before rotating so the token isn't burned.
+        if (await this.sessions.belongsToClient(refreshToken)) {
+            throw new UnauthorizedError('Invalid or expired refresh token', 'INVALID_TOKEN');
+        }
         const { session, refreshToken: nextRefreshToken } = await this.sessions.rotate(refreshToken, context);
         return {
             accessToken: await this.accessTokens.sign({ userId: session.userId, role: session.user.role, sessionId: session.id }),

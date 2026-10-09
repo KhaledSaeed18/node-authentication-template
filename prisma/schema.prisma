@@ -32,6 +32,8 @@ model User {
   passkeys           Passkey[]
   webauthnChallenges WebAuthnChallenge[]
   securityEvents     SecurityEvent[]
+  authorizationCodes AuthorizationCode[]
+  oauthConsents      OAuthConsent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,7 +98,12 @@ model Session {
   expiresAt         DateTime
   revokedAt         DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Set for sessions created through OpenID Connect: the client and the granted scopes
+  clientId String?
+  scope    String?
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -206,4 +213,75 @@ model SecurityEvent {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
+}
+
+// An application allowed to use this service as its OpenID Connect provider
+model OAuthClient {
+  // client_id
+  id           String   @id
+  name         String
+  // SHA-256 of the client secret; null for public clients (SPAs, mobile apps), which rely on PKCE
+  secretHash   String?
+  // Exact redirect URIs; anything else is refused
+  redirectUris String[]
+  // Scopes this client may request
+  scopes       String[]
+  // Trusted first-party apps skip the consent step
+  firstParty   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  interactions       OAuthInteraction[]
+  authorizationCodes AuthorizationCode[]
+  consents           OAuthConsent[]
+  sessions           Session[]
+}
+
+// An authorization request waiting for the user to sign in (and possibly consent)
+model OAuthInteraction {
+  id            String   @id @default(cuid())
+  clientId      String
+  redirectUri   String
+  scope         String
+  state         String?
+  nonce         String?
+  codeChallenge String
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+// Single-use authorization code (stored hashed), exchanged at the token endpoint
+model AuthorizationCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  clientId      String
+  userId        String
+  redirectUri   String
+  scope         String
+  nonce         String?
+  codeChallenge String
+  authTime      DateTime
+  expiresAt     DateTime
+  usedAt        DateTime?
+  // Session created by the exchange; revoked if the code is ever presented again
+  sessionId     String?
+  createdAt     DateTime  @default(now())
+
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Scopes a user has already approved for a third-party client
+model OAuthConsent {
+  userId    String
+  clientId  String
+  scopes    String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([userId, clientId])
 }

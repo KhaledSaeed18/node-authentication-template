@@ -23,6 +23,12 @@ const envSchema = z.object({
     // created automatically once the current one is this old
     SIGNING_KEY_ROTATION_DAYS: z.coerce.number().int().positive().default(30),
 
+    // OpenID Connect provider: the public URL of this service (the "iss" of ID tokens and
+    // the base of the discovery document), and the front-end page that signs users in
+    // during an authorization request (it receives ?interaction=<id>)
+    OIDC_ISSUER: z.url().default('http://localhost:4000'),
+    OIDC_LOGIN_URL: z.url().default('http://localhost:3000/login'),
+
     // 32 random bytes, base64 encoded (`openssl rand -base64 32`). Used to derive keys
     // for hashing one-time codes and encrypting 2FA secrets. Changing it invalidates both.
     ENCRYPTION_KEY: z

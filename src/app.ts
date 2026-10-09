@@ -13,6 +13,7 @@ import { SigningKeyStore } from './modules/keys/signing-key.store.js';
 import { durationToMs } from './shared/utils/duration.js';
 import { OutboxWorker } from './modules/outbox/outbox.worker.js';
 import { createHealthRouter, type HealthState } from './modules/health/health.routes.js';
+import { createOidcModule } from './modules/oidc/index.js';
 import { createUsersModule } from './modules/users/index.js';
 import { errorHandler, notFoundHandler } from './shared/middlewares/error-handler.js';
 
@@ -88,9 +89,20 @@ export const buildApplication = (overrides: Partial<AppDependencies> = {}): Appl
 
     const auth = createAuthModule(deps);
     const users = createUsersModule({ db: deps.db, authenticate: auth.authenticate });
+    const oidc = createOidcModule({
+        db: deps.db,
+        sessions: auth.sessions,
+        accessTokens: auth.accessTokens,
+        signingKeys: deps.signingKeys,
+        authenticate: auth.authenticate,
+    });
+
+    // OpenID Connect provider endpoints live at the issuer root
+    app.use(oidc.protocolRouter);
 
     app.use(`${baseUrl}/auth`, auth.router);
     app.use(`${baseUrl}/users`, users.router);
+    app.use(`${baseUrl}/oauth-clients`, oidc.adminRouter);
 
     app.use(notFoundHandler);
     app.use(errorHandler);

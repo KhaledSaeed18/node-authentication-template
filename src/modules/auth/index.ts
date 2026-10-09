@@ -29,6 +29,7 @@ export const createAuthModule = ({ db, mailer, signingKeys }: AuthModuleDependen
     return {
         service,
         sessions,
+        accessTokens,
         authenticate,
         router: createAuthRouter(new AuthController(service), authenticate),
         // Background jobs this module defines, delivered by the outbox worker

@@ -32,7 +32,12 @@ export type PublicSession = Pick<Session, 'id' | 'ipAddress' | 'userAgent' | 'cr
 export class SessionService {
     constructor(private readonly db: PrismaClient) {}
 
-    async create(userId: string, context: RequestContext): Promise<{ sessionId: string; refreshToken: string }> {
+    // client is set for sessions created through OpenID Connect
+    async create(
+        userId: string,
+        context: RequestContext,
+        client?: { clientId: string; scope: string }
+    ): Promise<{ sessionId: string; refreshToken: string }> {
         // Opportunistic cleanup of this user's dead sessions
         await this.db.session.deleteMany({
             where: { userId, OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { not: null } }] },
@@ -46,6 +51,8 @@ export class SessionService {
                 ipAddress: context.ipAddress,
                 userAgent: context.userAgent,
                 expiresAt: new Date(Date.now() + refreshTtlMs()),
+                clientId: client?.clientId,
+                scope: client?.scope,
             },
         });
 
@@ -104,6 +111,13 @@ export class SessionService {
         }
 
         throw invalidToken();
+    }
+
+    async belongsToClient(refreshToken: string): Promise<boolean> {
+        const parsed = parseToken(refreshToken);
+        if (!parsed) return false;
+        const session = await this.db.session.findUnique({ where: { id: parsed.sessionId }, select: { clientId: true } });
+        return !!session?.clientId;
     }
 
     async isActive(sessionId: string): Promise<boolean> {

@@ -9,6 +9,9 @@ export interface TokenClaims {
     userId: string;
     role: Role;
     sessionId: string;
+    // Only on tokens issued to OpenID Connect clients
+    clientId?: string;
+    scope?: string;
 }
 
 type Expiry = NonNullable<jwt.SignOptions['expiresIn']>;
@@ -21,21 +24,28 @@ const invalidToken = () => new UnauthorizedError('Invalid token', 'INVALID_TOKEN
 export class AccessTokens {
     constructor(private readonly keys: SigningKeyStore) {}
 
+    // Tokens for an OpenID Connect client are addressed to that client (aud = client_id),
+    // so the first-party API, which expects JWT_AUDIENCE, never accepts them
     async sign(claims: TokenClaims): Promise<string> {
         const { kid, privateKey } = await this.keys.signingKey();
-        return jwt.sign({ role: claims.role, sid: claims.sessionId }, privateKey, {
+        const payload = {
+            role: claims.role,
+            sid: claims.sessionId,
+            ...(claims.clientId && { client_id: claims.clientId, scope: claims.scope ?? '' }),
+        };
+        return jwt.sign(payload, privateKey, {
             algorithm: 'ES256',
             keyid: kid,
             subject: claims.userId,
             issuer: env.JWT_ISSUER,
-            audience: env.JWT_AUDIENCE,
+            audience: claims.clientId ?? env.JWT_AUDIENCE,
             expiresIn: env.ACCESS_TOKEN_TTL as Expiry,
         });
     }
 
     // Pins ES256 and picks the key by kid, so unsigned tokens, HS256 tokens "signed"
     // with the public key, and tokens from retired or foreign keys are all rejected
-    async verify(token: string): Promise<TokenClaims> {
+    async verify(token: string, audience: string = env.JWT_AUDIENCE): Promise<TokenClaims> {
         const decoded = jwt.decode(token, { complete: true });
         const kid = decoded?.header.kid;
         if (!kid || decoded.header.alg !== 'ES256') throw invalidToken();
@@ -47,13 +57,18 @@ export class AccessTokens {
             const payload = jwt.verify(token, publicKey, {
                 algorithms: ['ES256'],
                 issuer: env.JWT_ISSUER,
-                audience: env.JWT_AUDIENCE,
+                audience,
             }) as jwt.JwtPayload;
 
             if (!payload.sub || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
                 throw new Error('Missing claims');
             }
-            return { userId: payload.sub, role: payload.role as Role, sessionId: payload.sid };
+            return {
+                userId: payload.sub,
+                role: payload.role as Role,
+                sessionId: payload.sid,
+                ...(typeof payload.client_id === 'string' && { clientId: payload.client_id, scope: String(payload.scope ?? '') }),
+            };
         } catch (error) {
             if (error instanceof jwt.TokenExpiredError) {
                 throw new UnauthorizedError('Token has expired', 'TOKEN_EXPIRED');
