@@ -1,6 +1,6 @@
 {
   "name": "node-authentication-template",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "dist/server.js",
   "license": "MIT",
   "type": "module",
