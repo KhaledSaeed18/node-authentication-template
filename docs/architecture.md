@@ -23,6 +23,7 @@ flowchart LR
 - **PostgreSQL**: the only required infrastructure. Holds users, sessions, codes, keys, the outbox and the activity log.
 - **Redis**: optional, only to share rate limit counters between instances.
 - **Other services** verify access tokens with the public keys from the JWKS endpoint, without sharing any secret.
+- **Client applications** can sign their users in through the OpenID Connect endpoints.
 
 ## Code layout
 
@@ -123,6 +124,31 @@ sequenceDiagram
     A->>A: verify signature, origin, RP id, user verification, counter
     A->>DB: update counter, start session
     A-->>B: tokens
+```
+
+### OpenID Connect sign-in for another application
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant RP as Client app
+    participant A as API (provider)
+    participant L as Login page (front end)
+    RP->>B: redirect to /oauth/authorize (PKCE S256, state, nonce)
+    B->>A: GET /oauth/authorize
+    A->>A: check client, exact redirect_uri, scopes, PKCE
+    A-->>B: 302 to OIDC_LOGIN_URL?interaction=id
+    B->>L: login page
+    L->>A: sign in (password, 2FA or passkey)
+    L->>A: POST /oauth/interactions/id/complete (consent if third party)
+    A-->>L: redirectTo = redirect_uri?code&state&iss
+    L->>B: navigate to redirectTo
+    B->>RP: callback with code
+    RP->>A: POST /oauth/token (code, code_verifier, client auth)
+    A->>A: verify PKCE, single-use code, create client session
+    A-->>RP: access_token (aud = client), id_token (ES256), refresh_token
+    RP->>A: GET /.well-known/jwks.json, verify id_token
 ```
 
 ### Outbox delivery

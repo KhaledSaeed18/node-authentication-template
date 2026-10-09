@@ -38,6 +38,10 @@ A STRIDE analysis of the authentication service. Each threat lists the mitigatio
 | Skipping the password step of 2FA | Second step requires a 5-minute challenge token signed with its own key | `auth` |
 | Phishing | Passkeys are bound to the origin and RP id; wrong origin rejected | `passkeys` |
 | Replayed or cloned passkey | Single-use server-side challenges; signature counter regression rejected | `passkeys` |
+| Intercepted authorization code (OIDC) | PKCE S256 required for every client; codes single use and 60 s; a reused code revokes the session it produced | `oidc` |
+| Open redirect / code sent to an attacker (OIDC) | Exact redirect URI match; unknown clients and unregistered URIs get an error, never a redirect | `oidc` |
+| Mix-up attacks (OIDC) | `iss` in authorization responses (RFC 9207), advertised in discovery | `oidc` |
+| Client impersonation (OIDC) | Client secrets (256-bit, stored hashed) checked in constant time; codes bound to the client they were issued to | `oidc` |
 
 ### Tampering
 
@@ -83,6 +87,8 @@ A STRIDE analysis of the authentication service. Each threat lists the mitigatio
 | Reaching admin routes | `requireRole('ADMIN')`; role read from the token, which is re-issued with the current role on refresh | `users` |
 | Keeping access after a password change | Password reset ends all sessions, password change all others; revocation is immediate | `sessions` |
 | Minting tokens from a verifier service | Verifiers only get public keys | `tokens` |
+| A third-party client using its token on the account API (OIDC) | Client access tokens have `aud` = client id and are rejected by the account API; client refresh tokens only work at `/oauth/token` | `oidc` |
+| A third-party client getting scopes the user didn't approve (OIDC) | Consent required once per scope set; scopes limited to the client's registration | `oidc` |
 
 ## Residual risks
 

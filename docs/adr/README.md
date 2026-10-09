@@ -12,3 +12,4 @@ Short records of the significant design decisions: the context, what was decided
 | [0006](0006-es256-access-tokens-with-jwks-and-rotation.md) | ES256 access tokens with JWKS and key rotation | Accepted |
 | [0007](0007-passkeys-as-a-complete-sign-in-factor.md) | Passkeys as a complete sign-in factor | Accepted |
 | [0008](0008-postgresql-as-the-only-required-dependency.md) | PostgreSQL as the only required dependency | Accepted |
+| [0009](0009-headless-openid-connect-provider.md) | Headless OpenID Connect provider | Accepted |
