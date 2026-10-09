@@ -43,6 +43,8 @@ const envSchema = z.object({
         }),
 
     APP_NAME: z.string().default('Node Auth'),
+    // How long login history is kept by the cleanup job
+    LOGIN_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
     // Interactive API docs at /docs. Defaults to on, except in production.
     API_DOCS_ENABLED: z.stringbool().optional(),
 
