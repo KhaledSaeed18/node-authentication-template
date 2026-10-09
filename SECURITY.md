@@ -57,6 +57,10 @@ Out of scope:
 - denial of service through traffic volume alone
 - social engineering
 
+## Automated Checks
+
+Every push and pull request runs CodeQL (security-extended queries), builds the Docker image and scans it with Trivy (results in the Security tab, an SPDX SBOM is attached to each run), and pull requests get a dependency review. Dependabot keeps dependencies current, and secret scanning with push protection is enabled.
+
 ## Security Design
 
 The measures already in place (Argon2id hashing, lockout, hashed single-use codes, rotating refresh tokens with reuse detection, encrypted 2FA secrets, and more) are described in the [Security Notes](README.md#security-notes) section of the README.

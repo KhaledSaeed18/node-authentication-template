@@ -3,6 +3,8 @@
 A secure, modern authentication API for Node.js, built with TypeScript, Express 5, Prisma 7 and PostgreSQL. It covers the full account lifecycle (signup, email verification, passkeys, password sign in and reset, TOTP two-factor authentication with recovery codes, rotating refresh tokens and session management) and is meant to be dropped into a project or used as the starting point of one.
 
 [![CI](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/codeql.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/codeql.yml)
+[![Container](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/container.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/container.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-24-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Express.js](https://img.shields.io/badge/Express-5-404D59?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
@@ -62,7 +64,8 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 - OpenAPI 3.1 document and interactive API reference at `/docs`
 - Docker image and a Compose stack (PostgreSQL, Redis, Mailpit)
 - Data retention job for expired sessions, codes and old login history
-- Integration tests against a real database, CI on GitHub Actions, Dependabot
+- Integration tests against a real database, CI on GitHub Actions
+- Security automation: CodeQL, Trivy image scanning with an SBOM, dependency review, Dependabot, secret scanning with push protection
 
 ## Tech Stack
 
@@ -299,7 +302,7 @@ Emails are captured by an in-memory mailer, so tests read the codes directly.
 
 ## Deployment
 
-- Build the image with `docker build -t node-auth .`. It runs as a non-root user and has a health check on `/health`.
+- Build the image with `docker build -t node-auth .`. It runs as a non-root user, has a health check on `/health`, ships without npm/yarn, and is built, smoke tested and scanned by CI on every push.
 - Run `node_modules/.bin/prisma migrate deploy` from the same image as a release step before starting new instances.
 - Set `NODE_ENV=production`, the required secrets, `TRUST_PROXY` when behind a load balancer and `REDIS_URL` when running more than one instance.
 - Schedule `node dist/scripts/cleanup.js`, for example daily.

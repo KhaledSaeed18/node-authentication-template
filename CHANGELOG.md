@@ -8,6 +8,7 @@
 
 ### Added
 
+- Security automation: CodeQL, a container build that is smoke tested and scanned with Trivy (with an SBOM), dependency review on pull requests. The runtime image no longer contains npm or yarn.
 - ES256 signing keys stored encrypted in the database, rotated automatically (`SIGNING_KEY_ROTATION_DAYS`), and published at `/.well-known/jwks.json` so other services can verify access tokens.
 
 - Passkeys (WebAuthn): usernameless passwordless sign-in, registration and management (list, rename, remove). New settings `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS`.
