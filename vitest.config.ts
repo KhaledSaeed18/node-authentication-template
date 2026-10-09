@@ -14,7 +14,6 @@ export default defineConfig({
             API_VERSION: 'v1',
             DATABASE_URL:
                 process.env.TEST_DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/auth_test',
-            JWT_SECRET: 'test-access-secret-that-is-long-enough-0123456789',
             ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
             RATE_LIMIT_ENABLED: 'false',
             OUTBOX_WORKER_ENABLED: 'false',

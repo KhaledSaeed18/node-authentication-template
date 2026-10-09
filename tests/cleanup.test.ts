@@ -53,9 +53,25 @@ describe('cleanupExpiredData', () => {
             ],
         });
 
-        const result = await cleanupExpiredData(prisma, { loginHistoryRetentionDays: 90 });
+        await prisma.signingKey.createMany({
+            data: [
+                { id: 'active', publicJwk: {}, privateKey: 'x' },
+                { id: 'recently-retired', publicJwk: {}, privateKey: 'x', retiredAt: ago(60_000) },
+                { id: 'long-retired', publicJwk: {}, privateKey: 'x', retiredAt: ago(DAY) },
+            ],
+        });
 
-        expect(result).toEqual({ sessions: 2, verificationCodes: 1, loginHistory: 1, outboxMessages: 2, webauthnChallenges: 1 });
+        const result = await cleanupExpiredData(prisma, { loginHistoryRetentionDays: 90, retiredSigningKeyRetentionMs: 20 * 60 * 1000 });
+
+        expect(result).toEqual({
+            sessions: 2,
+            verificationCodes: 1,
+            loginHistory: 1,
+            outboxMessages: 2,
+            webauthnChallenges: 1,
+            signingKeys: 1,
+        });
+        expect((await prisma.signingKey.findMany()).map((k) => k.id).sort()).toEqual(['active', 'recently-retired']);
         // Pending jobs are never removed, however old
         expect(await prisma.outboxMessage.count({ where: { status: 'PENDING' } })).toBe(1);
         expect((await prisma.session.findMany()).map((s) => s.tokenHash)).toEqual(['active']);

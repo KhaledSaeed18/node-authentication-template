@@ -8,6 +8,7 @@ export interface CleanupResult {
     loginHistory: number;
     outboxMessages: number;
     webauthnChallenges: number;
+    signingKeys: number;
 }
 
 // Delivered jobs are only kept briefly; failed ones longer, so they can be inspected
@@ -18,12 +19,15 @@ const FAILED_JOB_RETENTION_DAYS = 30;
 // history past the retention period and old outbox jobs. Safe to run as often as you like.
 export const cleanupExpiredData = async (
     db: PrismaClient,
-    { loginHistoryRetentionDays }: { loginHistoryRetentionDays: number },
+    {
+        loginHistoryRetentionDays,
+        retiredSigningKeyRetentionMs,
+    }: { loginHistoryRetentionDays: number; retiredSigningKeyRetentionMs: number },
     now = new Date()
 ): Promise<CleanupResult> => {
     const daysAgo = (days: number) => new Date(now.getTime() - days * DAY_MS);
 
-    const [sessions, verificationCodes, loginHistory, outboxMessages, webauthnChallenges] = await Promise.all([
+    const [sessions, verificationCodes, loginHistory, outboxMessages, webauthnChallenges, signingKeys] = await Promise.all([
         db.session.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { not: null } }] } }),
         db.verificationCode.deleteMany({ where: { expiresAt: { lt: now } } }),
         db.loginHistory.deleteMany({
@@ -38,6 +42,8 @@ export const cleanupExpiredData = async (
             },
         }),
         db.webAuthnChallenge.deleteMany({ where: { expiresAt: { lt: now } } }),
+        // Retired keys no longer published (every token they signed has expired)
+        db.signingKey.deleteMany({ where: { retiredAt: { lt: new Date(now.getTime() - retiredSigningKeyRetentionMs) } } }),
     ]);
 
     return {
@@ -46,5 +52,6 @@ export const cleanupExpiredData = async (
         loginHistory: loginHistory.count,
         outboxMessages: outboxMessages.count,
         webauthnChallenges: webauthnChallenges.count,
+        signingKeys: signingKeys.count,
     };
 };

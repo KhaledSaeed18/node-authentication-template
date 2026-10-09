@@ -3,6 +3,7 @@ import { env } from '../../config/env.js';
 import type { Role } from '../../generated/prisma/enums.js';
 import { UnauthorizedError } from '../../shared/errors/app-error.js';
 import { deriveKey } from '../../shared/utils/crypto.js';
+import type { SigningKeyStore } from '../keys/signing-key.store.js';
 
 export interface TokenClaims {
     userId: string;
@@ -12,40 +13,55 @@ export interface TokenClaims {
 
 type Expiry = NonNullable<jwt.SignOptions['expiresIn']>;
 
-const sign = (claims: TokenClaims, secret: string, expiresIn: string) =>
-    jwt.sign({ role: claims.role, sid: claims.sessionId }, secret, {
-        algorithm: 'HS256',
-        subject: claims.userId,
-        issuer: env.JWT_ISSUER,
-        audience: env.JWT_AUDIENCE,
-        expiresIn: expiresIn as Expiry,
-    });
+const invalidToken = () => new UnauthorizedError('Invalid token', 'INVALID_TOKEN');
 
-// Access tokens are short-lived JWTs; refresh tokens are opaque (see SessionService).
-// Pins the algorithm and checks issuer/audience, so tokens signed for something else
-// (or with "alg": "none") are rejected
-const verify = (token: string, secret: string): TokenClaims => {
-    try {
-        const payload = jwt.verify(token, secret, {
-            algorithms: ['HS256'],
+// Short-lived access tokens, signed with ES256 keys from the SigningKeyStore (refresh
+// tokens are opaque, see SessionService). Anyone can verify them with the public keys
+// at /.well-known/jwks.json; only this service can sign them.
+export class AccessTokens {
+    constructor(private readonly keys: SigningKeyStore) {}
+
+    async sign(claims: TokenClaims): Promise<string> {
+        const { kid, privateKey } = await this.keys.signingKey();
+        return jwt.sign({ role: claims.role, sid: claims.sessionId }, privateKey, {
+            algorithm: 'ES256',
+            keyid: kid,
+            subject: claims.userId,
             issuer: env.JWT_ISSUER,
             audience: env.JWT_AUDIENCE,
-        }) as jwt.JwtPayload;
-
-        if (!payload.sub || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
-            throw new Error('Missing claims');
-        }
-        return { userId: payload.sub, role: payload.role as Role, sessionId: payload.sid };
-    } catch (error) {
-        if (error instanceof jwt.TokenExpiredError) {
-            throw new UnauthorizedError('Token has expired', 'TOKEN_EXPIRED');
-        }
-        throw new UnauthorizedError('Invalid token', 'INVALID_TOKEN');
+            expiresIn: env.ACCESS_TOKEN_TTL as Expiry,
+        });
     }
-};
 
-export const signAccessToken = (claims: TokenClaims) => sign(claims, env.JWT_SECRET, env.ACCESS_TOKEN_TTL);
-export const verifyAccessToken = (token: string) => verify(token, env.JWT_SECRET);
+    // Pins ES256 and picks the key by kid, so unsigned tokens, HS256 tokens "signed"
+    // with the public key, and tokens from retired or foreign keys are all rejected
+    async verify(token: string): Promise<TokenClaims> {
+        const decoded = jwt.decode(token, { complete: true });
+        const kid = decoded?.header.kid;
+        if (!kid || decoded.header.alg !== 'ES256') throw invalidToken();
+
+        const publicKey = await this.keys.publicKey(kid);
+        if (!publicKey) throw invalidToken();
+
+        try {
+            const payload = jwt.verify(token, publicKey, {
+                algorithms: ['ES256'],
+                issuer: env.JWT_ISSUER,
+                audience: env.JWT_AUDIENCE,
+            }) as jwt.JwtPayload;
+
+            if (!payload.sub || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
+                throw new Error('Missing claims');
+            }
+            return { userId: payload.sub, role: payload.role as Role, sessionId: payload.sid };
+        } catch (error) {
+            if (error instanceof jwt.TokenExpiredError) {
+                throw new UnauthorizedError('Token has expired', 'TOKEN_EXPIRED');
+            }
+            throw invalidToken();
+        }
+    }
+}
 
 // Proof that the password step of a 2FA signin succeeded. Short-lived, signed with
 // its own key and purpose so it can't be used as an access token or vice versa.

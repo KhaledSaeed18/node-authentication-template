@@ -55,7 +55,6 @@ services:
     environment:
       PORT: 4000
       DATABASE_URL: postgresql://postgres:postgres@db:5432/auth
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (at least 32 characters)}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY (openssl rand -base64 32)}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       REDIS_URL: redis://redis:6379

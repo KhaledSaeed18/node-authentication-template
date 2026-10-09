@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { PrismaClient } from '../../generated/prisma/client.js';
+import type { SigningKeyStore } from '../keys/signing-key.store.js';
 import { logger } from '../../lib/logger.js';
 import { redis } from '../../lib/redis.js';
 
@@ -8,7 +9,7 @@ export interface HealthState {
 }
 
 // Liveness and readiness probes for load balancers, Docker and Kubernetes
-export const createHealthRouter = (db: PrismaClient, state: HealthState): Router => {
+export const createHealthRouter = (db: PrismaClient, state: HealthState, signingKeys?: SigningKeyStore): Router => {
     const router = Router();
 
     // The process is up
@@ -40,6 +41,8 @@ export const createHealthRouter = (db: PrismaClient, state: HealthState): Router
         await Promise.all([
             run('database', () => db.$queryRaw`SELECT 1`),
             client && run('redis', () => client.ping()),
+            // A key that can't be decrypted means no tokens can be issued
+            signingKeys && run('signingKeys', () => signingKeys.signingKey()),
         ]);
 
         const ready = Object.values(checks).every((result) => result === 'ok');

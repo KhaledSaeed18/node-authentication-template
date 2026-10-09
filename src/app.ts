@@ -8,6 +8,9 @@ import type { PrismaClient } from './generated/prisma/client.js';
 import { prisma } from './lib/prisma.js';
 import { createMailer, type Mailer } from './mail/mailer.js';
 import { createAuthModule } from './modules/auth/index.js';
+import { createKeysRouter } from './modules/keys/keys.routes.js';
+import { SigningKeyStore } from './modules/keys/signing-key.store.js';
+import { durationToMs } from './shared/utils/duration.js';
 import { OutboxWorker } from './modules/outbox/outbox.worker.js';
 import { createHealthRouter, type HealthState } from './modules/health/health.routes.js';
 import { createUsersModule } from './modules/users/index.js';
@@ -17,6 +20,7 @@ export interface AppDependencies {
     db: PrismaClient;
     mailer: Mailer;
     health: HealthState;
+    signingKeys: SigningKeyStore;
 }
 
 export interface Application {
@@ -28,10 +32,18 @@ export interface Application {
 // Builds the Express app and the outbox worker without starting anything.
 // Dependencies can be overridden, e.g. tests pass an in-memory mailer.
 export const buildApplication = (overrides: Partial<AppDependencies> = {}): Application => {
+    const db = overrides.db ?? prisma;
     const deps: AppDependencies = {
-        db: overrides.db ?? prisma,
+        db,
         mailer: overrides.mailer ?? createMailer(env),
         health: overrides.health ?? { shuttingDown: false },
+        signingKeys:
+            overrides.signingKeys ??
+            new SigningKeyStore(db, {
+                rotationIntervalMs: env.SIGNING_KEY_ROTATION_DAYS * 24 * 60 * 60 * 1000,
+                // Retired keys stay published until every token they signed has expired
+                retiredKeyRetentionMs: durationToMs(env.ACCESS_TOKEN_TTL) + 5 * 60 * 1000,
+            }),
     };
 
     const app = express();
@@ -48,7 +60,7 @@ export const buildApplication = (overrides: Partial<AppDependencies> = {}): Appl
     );
 
     // Probes are mounted before logging so they don't flood the logs
-    app.use(createHealthRouter(deps.db, deps.health));
+    app.use(createHealthRouter(deps.db, deps.health, deps.signingKeys));
 
     if (env.API_DOCS_ENABLED ?? env.NODE_ENV !== 'production') {
         // Mounted before the API-wide helmet config, which is too strict for the docs UI
@@ -70,6 +82,9 @@ export const buildApplication = (overrides: Partial<AppDependencies> = {}): Appl
     app.use(express.json({ limit: '10kb' }));
 
     const baseUrl = `${env.BASE_URL}/${env.API_VERSION}`;
+
+    // Public keys for verifying access tokens
+    app.use(createKeysRouter(deps.signingKeys));
 
     const auth = createAuthModule(deps);
     const users = createUsersModule({ db: deps.db, authenticate: auth.authenticate });

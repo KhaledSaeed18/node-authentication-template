@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { Role } from '../../generated/prisma/enums.js';
-import { type TokenClaims, verifyAccessToken } from '../../modules/auth/tokens.js';
+import type { AccessTokens, TokenClaims } from '../../modules/auth/tokens.js';
 import { ForbiddenError, UnauthorizedError } from '../errors/app-error.js';
 
 export type AuthTokenPayload = TokenClaims;
@@ -14,7 +14,7 @@ declare module 'express' {
 // Requires a valid access token whose session hasn't been revoked (logout, password
 // reset, ...). The session lookup makes revocation take effect immediately.
 export const createAuthenticate =
-    (sessions: { isActive(sessionId: string): Promise<boolean> }) =>
+    (tokens: AccessTokens, sessions: { isActive(sessionId: string): Promise<boolean> }) =>
     async (req: Request, _res: Response, next: NextFunction) => {
         const [scheme, token] = req.headers.authorization?.split(' ') ?? [];
 
@@ -22,7 +22,7 @@ export const createAuthenticate =
             throw new UnauthorizedError('Missing or malformed access token', 'MISSING_TOKEN');
         }
 
-        const claims = verifyAccessToken(token);
+        const claims = await tokens.verify(token);
         if (!(await sessions.isActive(claims.sessionId))) {
             throw new UnauthorizedError('Session has ended, please sign in again', 'SESSION_REVOKED');
         }

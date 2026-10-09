@@ -25,7 +25,7 @@ import type {
 import type { PasskeyService, PublicPasskey } from './passkey.service.js';
 import type { RecoveryCodeService } from './recovery-code.service.js';
 import type { SessionService } from './session.service.js';
-import { signAccessToken, signMfaToken, verifyMfaToken } from './tokens.js';
+import { type AccessTokens, signMfaToken, verifyMfaToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, openTOTPSecret, sealTOTPSecret, verifyTOTP } from './totp.js';
 import './auth.jobs.js';
 import type { VerificationCodeService } from './verification-code.service.js';
@@ -54,7 +54,8 @@ export class AuthService {
         private readonly codes: VerificationCodeService,
         private readonly sessions: SessionService,
         private readonly recoveryCodes: RecoveryCodeService,
-        private readonly passkeys: PasskeyService
+        private readonly passkeys: PasskeyService,
+        private readonly accessTokens: AccessTokens
     ) {}
 
     // Temporary lock after too many failed signins since the last successful one,
@@ -132,7 +133,7 @@ export class AuthService {
     private async startSession(user: User, context: RequestContext) {
         const { sessionId, refreshToken } = await this.sessions.create(user.id, context);
         return {
-            accessToken: signAccessToken({ userId: user.id, role: user.role, sessionId }),
+            accessToken: await this.accessTokens.sign({ userId: user.id, role: user.role, sessionId }),
             refreshToken,
         };
     }
@@ -223,7 +224,7 @@ export class AuthService {
     async refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
         const { session, refreshToken: nextRefreshToken } = await this.sessions.rotate(refreshToken);
         return {
-            accessToken: signAccessToken({ userId: session.userId, role: session.user.role, sessionId: session.id }),
+            accessToken: await this.accessTokens.sign({ userId: session.userId, role: session.user.role, sessionId: session.id }),
             refreshToken: nextRefreshToken,
         };
     }

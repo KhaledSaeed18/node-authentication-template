@@ -175,3 +175,18 @@ model WebAuthnChallenge {
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// Asymmetric keys that sign access tokens (ES256). Public keys are published at
+// /.well-known/jwks.json so other services can verify tokens without any secret.
+model SigningKey {
+  // The "kid" in token headers
+  id         String    @id
+  algorithm  String    @default("ES256")
+  // Public key as a JWK
+  publicJwk  Json
+  // PKCS#8 PEM, encrypted with a key derived from ENCRYPTION_KEY
+  privateKey String
+  createdAt  DateTime  @default(now())
+  // Set when a newer key takes over; the key stays published until its tokens expire
+  retiredAt  DateTime?
+}
