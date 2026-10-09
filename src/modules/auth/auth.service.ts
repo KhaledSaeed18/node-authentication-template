@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import type { PrismaClient, User } from '../../generated/prisma/client.js';
@@ -13,6 +12,7 @@ import {
     UnauthorizedError,
 } from '../../shared/errors/app-error.js';
 import { logger } from '../../lib/logger.js';
+import { hashPassword, verifyPassword } from '../../shared/utils/password.js';
 import type {
     ResetPasswordInput,
     Signin2FAInput,
@@ -81,6 +81,15 @@ export class AuthService {
         });
     }
 
+    // Verifies the password and upgrades the stored hash if it uses older settings
+    private async checkPassword(user: User, password: string): Promise<boolean> {
+        const { valid, needsRehash } = await verifyPassword(user.password, password);
+        if (valid && needsRehash) {
+            await this.db.user.update({ where: { id: user.id }, data: { password: await hashPassword(password) } });
+        }
+        return valid;
+    }
+
     private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
         await this.db.loginHistory.create({
             data: {
@@ -114,7 +123,7 @@ export class AuthService {
         }
 
         const user = await this.db.user.create({
-            data: { firstName, lastName, email, password: await bcrypt.hash(password, env.SALT_ROUNDS) },
+            data: { firstName, lastName, email, password: await hashPassword(password) },
         });
 
         // The account exists either way; if the email fails the user can ask for a new code
@@ -131,7 +140,7 @@ export class AuthService {
         const user = await this.db.user.findUnique({ where: { email } });
         if (!user) throw invalidCredentials();
 
-        if (!(await bcrypt.compare(password, user.password))) {
+        if (!(await this.checkPassword(user, password))) {
             await this.recordLoginAttempt(user.id, context, false);
             throw invalidCredentials();
         }
@@ -218,7 +227,7 @@ export class AuthService {
 
         await this.db.user.update({
             where: { id: user.id },
-            data: { password: await bcrypt.hash(newPassword, env.SALT_ROUNDS) },
+            data: { password: await hashPassword(newPassword) },
         });
     }
 
@@ -259,7 +268,7 @@ export class AuthService {
         const user = await this.db.user.findUnique({ where: { email } });
         if (!user) throw invalidCredentials();
 
-        if (!(await bcrypt.compare(password, user.password))) {
+        if (!(await this.checkPassword(user, password))) {
             await this.recordLoginAttempt(user.id, context, false);
             throw invalidCredentials();
         }

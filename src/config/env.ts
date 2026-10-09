@@ -14,8 +14,6 @@ const envSchema = z.object({
 
     DATABASE_URL: z.url(),
 
-    SALT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
-
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
 

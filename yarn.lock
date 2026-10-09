@@ -295,6 +295,90 @@
   resolved "https://registry.yarnpkg.com/@noble/hashes/-/hashes-2.4.0.tgz#e6a3e98edbed3c8659b28bb8f9b18ca02ec8ea4b"
   integrity sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==
 
+"@node-rs/argon2-android-arm-eabi@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-android-arm-eabi/-/argon2-android-arm-eabi-2.2.2.tgz#a4d8db67fa2c305b95a95d02fdae95fc94fe1e40"
+  integrity sha512-c11BOrPLBWNC1cDyzGB+Bil+flmxfZbB2hv8EhcobmAsFKMyqkHPNhUY4qhcjv1U+4+Vmw4G8H+l224iO2g/Dw==
+
+"@node-rs/argon2-android-arm64@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-android-arm64/-/argon2-android-arm64-2.2.2.tgz#ff29ab7299b98848c77e45f96583a0ec7449ec3d"
+  integrity sha512-dpMYIoxhN/wY6hFH+3MM5kQErcH3luMekkszbkDF3NKqhB1kFRntkOLDpFY87oItBSHJrsoYkXC3vBRhjYoCjQ==
+
+"@node-rs/argon2-darwin-arm64@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-darwin-arm64/-/argon2-darwin-arm64-2.2.2.tgz#5d3a53eac816b0b3cf13a408977658b255f4eeac"
+  integrity sha512-vxVAXcIG0iiHizkCuImmzVhOFsRnU4Z79xiOxdISLyI+QhOAWbbTaVSXw0PNfThB3zAdkzzDJ/WWu52Hs/qHGg==
+
+"@node-rs/argon2-darwin-x64@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-darwin-x64/-/argon2-darwin-x64-2.2.2.tgz#006c4f84643e6732ef8010f1d96d5de274019c8e"
+  integrity sha512-r7GbSFpFZZ9EAV9cvIm9prUjOupK7QQXTyP+FJ6bWSMq0h+qRDBlUOXQXduDIIrLEGoBVelixKUtf4ksZ0ljoQ==
+
+"@node-rs/argon2-freebsd-x64@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-freebsd-x64/-/argon2-freebsd-x64-2.2.2.tgz#52731b5cf0c50fc8f4ea4a2eef996b5f05ce2190"
+  integrity sha512-AmWxDSmQgprilD6NX3jmxCgcDvWAW7kGJnnWQo+0qav6nfMXdPZYgSezK/skmw1GBWipr4yZMIUzpeNHnVpMxg==
+
+"@node-rs/argon2-linux-arm-gnueabihf@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-linux-arm-gnueabihf/-/argon2-linux-arm-gnueabihf-2.2.2.tgz#ff11be66c896d8dccf4bb7c1827f3c253015d45b"
+  integrity sha512-M1gnPBTr9GFeEUWkQ53qCJeTsX03C3kcUeHnDbN7dU2xkI58wMP4Z1sEBN7WmKJ/fTHYEgti4truz7r4A82DLg==
+
+"@node-rs/argon2-linux-arm64-gnu@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-linux-arm64-gnu/-/argon2-linux-arm64-gnu-2.2.2.tgz#fc44e17e5d36c54fec6f52ba5d502d6906ecd0c1"
+  integrity sha512-4CYDlIdITlLSVcAXYUtEoGUahRaayPXM+4Rcfg3BZx9WGi6UB8HUycs6GNMTPYXV5kVXCpyE2u1HmYUpgmIzOQ==
+
+"@node-rs/argon2-linux-arm64-musl@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-linux-arm64-musl/-/argon2-linux-arm64-musl-2.2.2.tgz#a64dc68ae63c0385849c7a94539d11b82b2038c9"
+  integrity sha512-FYlfj3XgQ1xrx6HzQbKbUcKiYMG/3iSi/X81KyhHaItTJ7vZlMwrbVLl9yqDmvotKUF6VjrhrlZ8KRbbzchseA==
+
+"@node-rs/argon2-linux-x64-gnu@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-linux-x64-gnu/-/argon2-linux-x64-gnu-2.2.2.tgz#f4e84bf7b2137a9a8d9a5d2ddad0abc83c2018ee"
+  integrity sha512-ULXLs8UFYZANlwiROM7AeccxZndr2Xk3IstADq3jAUhnwV2W75mxMBTABUZ+7AdKRhPLOrxU77OgnMWlDkYJQg==
+
+"@node-rs/argon2-linux-x64-musl@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-linux-x64-musl/-/argon2-linux-x64-musl-2.2.2.tgz#40e9ac57617414be6ff513460d0e85c41a7e6c64"
+  integrity sha512-zgjIwc9TyGodn62vGc+36DGwFqVV5e7L8Ptd2FQWuBxe5aFrcFxvtDGn1/qfYwoHLv09utgtR+RBAPCXepWG3Q==
+
+"@node-rs/argon2-win32-arm64-msvc@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-win32-arm64-msvc/-/argon2-win32-arm64-msvc-2.2.2.tgz#1b9a7339f3bc11de2866084e65445c7e40ce3de5"
+  integrity sha512-3nLhvLie/ec5xfxUBXXqGMb7oGeqF+YXrcGckqaTaGkPtOBozho0Kh2IuP/zi9BcOriirTG2LW3gtIOfpuh+mQ==
+
+"@node-rs/argon2-win32-ia32-msvc@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-win32-ia32-msvc/-/argon2-win32-ia32-msvc-2.2.2.tgz#9a6a20b40cd7f7b0061553257ba23887bdb3af78"
+  integrity sha512-6RJKD6cFl7UeiYJLjRsXPywVXSFSaSDdr6xGpztNDV31QHCEecWnsnNmKxzi4gVpln2F9XeWEtIgM4Nqw1hLbA==
+
+"@node-rs/argon2-win32-x64-msvc@2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2-win32-x64-msvc/-/argon2-win32-x64-msvc-2.2.2.tgz#f6d22df15e025c7ff5ab65ce9438556a45c65993"
+  integrity sha512-dQOO9S4QKBaVul0Uyk/2quJc/OBeHNZRJP+GZZTy1A5kYIaAfIJGHUYLY6oFoAlcuLIkdFouLaHX3fCl8tZm/w==
+
+"@node-rs/argon2@^2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@node-rs/argon2/-/argon2-2.2.2.tgz#66bcc96121ff5b20871ebb53e79da493d72ea4b7"
+  integrity sha512-NtdlPPWtR5U4BxX5EGJYza+UklNaoWORmkaKCMqf/nyKeXWKVwNt8KfQoRpNT7OB1DcEwmePafO4wZyW+sbfCQ==
+  optionalDependencies:
+    "@node-rs/argon2-android-arm-eabi" "2.2.2"
+    "@node-rs/argon2-android-arm64" "2.2.2"
+    "@node-rs/argon2-darwin-arm64" "2.2.2"
+    "@node-rs/argon2-darwin-x64" "2.2.2"
+    "@node-rs/argon2-freebsd-x64" "2.2.2"
+    "@node-rs/argon2-linux-arm-gnueabihf" "2.2.2"
+    "@node-rs/argon2-linux-arm64-gnu" "2.2.2"
+    "@node-rs/argon2-linux-arm64-musl" "2.2.2"
+    "@node-rs/argon2-linux-x64-gnu" "2.2.2"
+    "@node-rs/argon2-linux-x64-musl" "2.2.2"
+    "@node-rs/argon2-win32-arm64-msvc" "2.2.2"
+    "@node-rs/argon2-win32-ia32-msvc" "2.2.2"
+    "@node-rs/argon2-win32-x64-msvc" "2.2.2"
+
 "@otplib/core@13.5.0":
   version "13.5.0"
   resolved "https://registry.yarnpkg.com/@otplib/core/-/core-13.5.0.tgz#629a7fef5b6394f34ff55213b936223b368796a4"
