@@ -22,6 +22,7 @@ import {
     verifyEmailSchema,
 } from '../modules/auth/auth.schemas.js';
 import { clientIdParamsSchema, createClientSchema } from '../modules/oidc/oidc.schemas.js';
+import { deleteAccountSchema } from '../modules/auth/auth.schemas.js';
 import { updateProfileSchema, userIdParamsSchema } from '../modules/users/users.schemas.js';
 import { paginationQuerySchema } from '../shared/validation/pagination.js';
 
@@ -392,6 +393,14 @@ const paths: ZodOpenApiPathsObject = {
             summary: 'Current user profile',
             responses: { '200': success('Profile', z.object({ user })) },
         }),
+        delete: operation({
+            ...authenticated,
+            tags: ['Users'],
+            summary: 'Delete the account and all its data',
+            description: 'Requires the current password, and a 2FA or recovery code when 2FA is enabled.',
+            requestBody: json(deleteAccountSchema),
+            responses: { '200': success('Account deleted') },
+        }),
         patch: operation({
             ...authenticated,
             tags: ['Users'],
@@ -425,6 +434,14 @@ const paths: ZodOpenApiPathsObject = {
             summary: 'Remove a client and everything issued to it (ADMIN only)',
             requestParams: { path: clientIdParamsSchema },
             responses: { '200': success('Removed'), '404': error('Client not found') },
+        }),
+    },
+    '/users/me/export': {
+        get: operation({
+            ...authenticated,
+            tags: ['Users'],
+            summary: 'Download everything stored about you (JSON, no secrets)',
+            responses: { '200': { description: 'JSON file (Content-Disposition: attachment)' } },
         }),
     },
     '/users/me/activity': {
