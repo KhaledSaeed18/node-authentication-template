@@ -13,6 +13,13 @@ export class UsersController {
         private readonly authService: AuthService
     ) {}
 
+    exportMe = async (req: Request, res: Response) => {
+        const data = await this.usersService.exportData(currentUser(req).userId);
+        res.set('Content-Disposition', 'attachment; filename="account-data.json"');
+        res.set('Cache-Control', 'no-store');
+        res.json(data);
+    };
+
     deleteMe = async (req: Request, res: Response) => {
         await this.authService.deleteAccount(currentUser(req).userId, req.body, {
             ipAddress: req.ip ?? null,

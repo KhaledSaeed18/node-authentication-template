@@ -17,6 +17,52 @@ export class UsersService {
         return this.db.user.update({ where: { id: userId }, data: input, select: publicUserSelect });
     }
 
+    // Everything stored about the user (GDPR right of access), minus secrets: no
+    // password hash, 2FA secret, token or code hashes
+    async exportData(userId: string) {
+        const user = await this.db.user.findUnique({
+            where: { id: userId },
+            select: {
+                ...publicUserSelect,
+                updatedAt: true,
+                sessions: {
+                    select: {
+                        id: true,
+                        ipAddress: true,
+                        userAgent: true,
+                        clientId: true,
+                        createdAt: true,
+                        lastUsedAt: true,
+                        expiresAt: true,
+                        revokedAt: true,
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
+                LoginHistory: {
+                    select: { ipAddress: true, userAgent: true, device: true, loginTime: true, successful: true },
+                    orderBy: { loginTime: 'desc' },
+                },
+                securityEvents: {
+                    select: { type: true, ipAddress: true, userAgent: true, metadata: true, createdAt: true },
+                    orderBy: { createdAt: 'desc' },
+                },
+                passkeys: { select: { name: true, deviceType: true, backedUp: true, createdAt: true, lastUsedAt: true } },
+                recoveryCodes: { select: { usedAt: true, createdAt: true } },
+                oauthConsents: { select: { scopes: true, createdAt: true, client: { select: { name: true } } } },
+            },
+        });
+        if (!user) throw new NotFoundError('User not found', 'USER_NOT_FOUND');
+
+        const { LoginHistory: loginHistory, recoveryCodes, oauthConsents, ...rest } = user;
+        return {
+            exportedAt: new Date().toISOString(),
+            ...rest,
+            loginHistory,
+            recoveryCodes: { total: recoveryCodes.length, unused: recoveryCodes.filter((code) => !code.usedAt).length },
+            oauthConsents: oauthConsents.map(({ client, ...consent }) => ({ client: client.name, ...consent })),
+        };
+    }
+
     // Admin listing, newest accounts first
     async list({ limit, cursor }: PaginationQuery): Promise<Page<PublicUser>> {
         const rows = await this.db.user.findMany({

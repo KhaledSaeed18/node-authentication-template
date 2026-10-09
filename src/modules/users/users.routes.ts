@@ -16,6 +16,7 @@ export const createUsersRouter = (controller: UsersController, authenticate: Req
     router.patch('/me', validate(updateProfileSchema), controller.updateMe);
     router.delete('/me', validate(deleteAccountSchema), controller.deleteMe);
     router.get('/me/activity', validate(paginationQuerySchema, 'query'), controller.myActivity);
+    router.get('/me/export', createLimiter('users-export', 5), controller.exportMe);
 
     // Admin only
     router.get('/', requireRole('ADMIN'), validate(paginationQuerySchema, 'query'), controller.list);
