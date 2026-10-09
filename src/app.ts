@@ -8,6 +8,7 @@ import { prisma } from './lib/prisma.js';
 import { createMailer, type Mailer } from './mail/mailer.js';
 import { createAuthModule } from './modules/auth/index.js';
 import { createHealthRouter, type HealthState } from './modules/health/health.routes.js';
+import { createUsersModule } from './modules/users/index.js';
 import { errorHandler, notFoundHandler } from './shared/middlewares/error-handler.js';
 
 export interface AppDependencies {
@@ -57,7 +58,11 @@ export const createApp = (overrides: Partial<AppDependencies> = {}): Express => 
 
     const baseUrl = `${env.BASE_URL}/${env.API_VERSION}`;
 
-    app.use(`${baseUrl}/auth`, createAuthModule(deps).router);
+    const auth = createAuthModule(deps);
+    const users = createUsersModule({ db: deps.db, authenticate: auth.authenticate });
+
+    app.use(`${baseUrl}/auth`, auth.router);
+    app.use(`${baseUrl}/users`, users.router);
 
     app.use(notFoundHandler);
     app.use(errorHandler);

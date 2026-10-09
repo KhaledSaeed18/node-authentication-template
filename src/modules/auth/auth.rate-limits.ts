@@ -1,20 +1,4 @@
-import rateLimit from 'express-rate-limit';
-import { env } from '../../config/env.js';
-import { TooManyRequestsError } from '../../shared/errors/app-error.js';
-
-const FIFTEEN_MINUTES = 15 * 60 * 1000;
-
-// Builds a limiter that allows `limit` requests per 15 minutes
-const createLimiter = (limit: number, message: string) => rateLimit({
-    windowMs: FIFTEEN_MINUTES,
-    limit,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    skip: () => !env.RATE_LIMIT_ENABLED,
-    handler: (_req, _res, next) => {
-        next(new TooManyRequestsError(message));
-    }
-});
+import { createLimiter } from '../../shared/middlewares/rate-limit.js';
 
 export const signupLimiter = createLimiter(5, "Too many signup attempts, please try again later");
 export const signinLimiter = createLimiter(5, "Too many signin attempts, please try again later");

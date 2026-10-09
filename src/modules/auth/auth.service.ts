@@ -14,6 +14,7 @@ import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
 import { detectDevice } from '../../shared/utils/user-agent.js';
 import { type PaginationQuery, toPage } from '../../shared/validation/pagination.js';
+import { type PublicUser, toPublicUser } from '../users/users.mapper.js';
 import type {
     ChangePasswordInput,
     ResetPasswordInput,
@@ -34,21 +35,9 @@ export interface RequestContext {
     userAgent: string | null;
 }
 
-export type PublicUser = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'isVerified' | 'totpEnabled'>;
-
 export type SigninResult =
     | { requiresTwoFactor: true; mfaToken: string }
     | { requiresTwoFactor: false; user: PublicUser; accessToken: string; refreshToken: string };
-
-export const toPublicUser = (user: User): PublicUser => ({
-    id: user.id,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    role: user.role,
-    isVerified: user.isVerified,
-    totpEnabled: user.totpEnabled,
-});
 
 const MAX_FAILED_SIGNINS = 5;
 const LOCKOUT_MINUTES = 15;
