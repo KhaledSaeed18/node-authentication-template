@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { errorHandler } from '../utils/errorHandler.js';
-import { Role } from '@prisma/client';
+import type { Role } from '../generated/prisma/enums.js';
 
 declare module 'express' {
     interface Request {

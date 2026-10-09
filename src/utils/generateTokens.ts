@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { Role } from '@prisma/client';
+import type { Role } from '../generated/prisma/enums.js';
 
 interface Payload {
     userId: string;
