@@ -1,4 +1,4 @@
-# 🔐 Node Authentication Template
+# Node Authentication Template
 
 ## Introduction
 

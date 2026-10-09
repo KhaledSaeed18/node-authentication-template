@@ -1,6 +1,6 @@
 # Contributing to Node Authentication Template
 
-## 📚 Table of Contents
+## Table of Contents
 
 1. Getting Started
 2. How to Contribute
