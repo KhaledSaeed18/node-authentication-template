@@ -1,11 +1,9 @@
-import express, { Express, Request, Response } from 'express';
-import dotenv from 'dotenv';
+import 'dotenv/config';
+import express, { type Express, type Request, type Response } from 'express';
 import cors from "cors";
-import { ErrorMiddleware } from './middlewares/error.middleware';
-import AuthRouter from './api/auth/auth.routes';
-import { securityHeaders } from './middlewares/securityHeaders.middleware';
-
-dotenv.config();
+import { ErrorMiddleware } from './middlewares/error.middleware.js';
+import AuthRouter from './api/auth/auth.routes.js';
+import { securityHeaders } from './middlewares/securityHeaders.middleware.js';
 
 const app: Express = express();
 

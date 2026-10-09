@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { Request, Response, NextFunction } from 'express';
-import { errorHandler } from '../../utils/errorHandler';
-import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from '../../constants/auth.constants';
+import type { Request, Response, NextFunction } from 'express';
+import { errorHandler } from '../../utils/errorHandler.js';
+import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from '../../constants/auth.constants.js';
 
 // Signup schema
 const signupSchema = z.object({

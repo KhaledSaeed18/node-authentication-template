@@ -1,11 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { generateAccessToken, generateRefreshToken } from "../../utils/generateTokens";
-import { Request } from "express";
-import jwt, { TokenExpiredError } from "jsonwebtoken";
-import { generateOTP } from "../../utils/generateOTP";
-import { sendPasswordResetEmail, sendVerificationEmail } from "../../mails/email";
-import { generateQRCode, generateTOTPSecret, verifyTOTP } from "../../utils/totp";
+import { generateAccessToken, generateRefreshToken } from "../../utils/generateTokens.js";
+import type { Request } from "express";
+import jwt from "jsonwebtoken";
+import { generateOTP } from "../../utils/generateOTP.js";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../../mails/email.js";
+import { generateQRCode, generateTOTPSecret, verifyTOTP } from "../../utils/totp.js";
 
 export class AuthService {
   private prisma: PrismaClient;
@@ -218,7 +218,7 @@ export class AuthService {
 
       return newAccessToken;
     } catch (error) {
-      if (error instanceof TokenExpiredError) {
+      if (error instanceof jwt.TokenExpiredError) {
         throw new Error("Refresh token expired", { cause: error });
       }
       throw new Error("Error refreshing access token", { cause: error });

@@ -1,9 +1,9 @@
 import { Router } from "express";
-import AuthController from "./auth.controller";
-import { loginHistoryLimiter, refreshTokenLimiter, signinLimiter, signupLimiter, verifyEmailLimiter, resendVerificationLimiter, forgotPasswordLimiter, resetPasswordLimiter, setup2FALimiter, verify2FALimiter, signin2FALimiter, disable2FALimiter } from "./auth.rateLimiting";
-import { validateDisable2FA, validateForgotPassword, validateLogin2FA, validateRefreshToken, validateResendVerification, validateResetPassword, validateSignin, validateSignup, validateVerify2FA, validateVerifyEmail } from "./auth.validation";
-import { authorize } from "../../middlewares/authorization.middleware";
-import { sanitizeRequestBody } from '../../middlewares/sanitizeBody.middleware';
+import AuthController from "./auth.controller.js";
+import { loginHistoryLimiter, refreshTokenLimiter, signinLimiter, signupLimiter, verifyEmailLimiter, resendVerificationLimiter, forgotPasswordLimiter, resetPasswordLimiter, setup2FALimiter, verify2FALimiter, signin2FALimiter, disable2FALimiter } from "./auth.rateLimiting.js";
+import { validateDisable2FA, validateForgotPassword, validateLogin2FA, validateRefreshToken, validateResendVerification, validateResetPassword, validateSignin, validateSignup, validateVerify2FA, validateVerifyEmail } from "./auth.validation.js";
+import { authorize } from "../../middlewares/authorization.middleware.js";
+import { sanitizeRequestBody } from '../../middlewares/sanitizeBody.middleware.js';
 
 export default class AuthRouter {
   private router: Router;

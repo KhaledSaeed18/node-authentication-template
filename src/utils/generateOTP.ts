@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 // Generates secure 6-digit OTP
 export const generateOTP = (): string => {

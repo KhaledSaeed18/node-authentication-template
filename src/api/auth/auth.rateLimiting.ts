@@ -1,5 +1,5 @@
 import rateLimit from 'express-rate-limit';
-import { errorHandler } from '../../utils/errorHandler';
+import { errorHandler } from '../../utils/errorHandler.js';
 
 // Rate limiting for signup attempts, 5 attempts per 15 minutes
 export const signupLimiter = rateLimit({

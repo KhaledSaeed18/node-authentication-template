@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt, { JwtPayload, TokenExpiredError } from 'jsonwebtoken';
-import { errorHandler } from '../utils/errorHandler';
+import type { Request, Response, NextFunction } from 'express';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
+import { errorHandler } from '../utils/errorHandler.js';
 import { Role } from '@prisma/client';
 
 declare module 'express' {
@@ -24,7 +24,7 @@ export const authorize = (req: Request, res: Response, next: NextFunction): void
 
         next();
     } catch (error) {
-        if (error instanceof TokenExpiredError) {
+        if (error instanceof jwt.TokenExpiredError) {
             return next(errorHandler(401, 'Unauthorized: Token has expired'));
         }
         next(errorHandler(401, 'Unauthorized: Invalid token'));

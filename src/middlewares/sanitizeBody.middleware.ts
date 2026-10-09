@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import sanitizeHtml from 'sanitize-html';
 
 // Recursively sanitize objects and arrays

@@ -1,9 +1,6 @@
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
 import { google } from "googleapis";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
-
-dotenv.config();
+import type SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
 
 const OAuth2 = google.auth.OAuth2;
 

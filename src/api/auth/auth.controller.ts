@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from "express";
-import { AuthService } from "./auth.service";
-import { errorHandler } from "../../utils/errorHandler";
+import type { Request, Response, NextFunction } from "express";
+import { AuthService } from "./auth.service.js";
+import { errorHandler } from "../../utils/errorHandler.js";
 
 export default class AuthController {
   private authService: AuthService;
