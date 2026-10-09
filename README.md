@@ -11,23 +11,22 @@ The Node Authentication Template is a robust, secure, and feature-rich authentic
 [![Prisma](https://img.shields.io/badge/Prisma-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)](https://www.prisma.io/)
 [![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=JSON%20web%20tokens&logoColor=white)](https://jwt.io/)
 [![bcrypt](https://img.shields.io/badge/bcrypt-CF1A12?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/bcryptjs)
-[![2FA](https://img.shields.io/badge/2FA-FFA500?style=for-the-badge&logo=authy&logoColor=white)](https://www.npmjs.com/package/speakeasy)
+[![2FA](https://img.shields.io/badge/2FA-FFA500?style=for-the-badge&logo=authy&logoColor=white)](https://www.npmjs.com/package/otplib)
 [![Nodemailer](https://img.shields.io/badge/Nodemailer-0F9DCE?style=for-the-badge&logo=minutemailer&logoColor=white)](https://nodemailer.com/)
-[![Google APIs](https://img.shields.io/badge/Google_APIs-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://www.npmjs.com/package/googleapis)
 [![Zod](https://img.shields.io/badge/Zod-3068b7?style=for-the-badge&logo=zod&logoColor=white)](https://github.com/colinhacks/zod)
 [![dotenv](https://img.shields.io/badge/dotenv-ECD53F?style=for-the-badge&logo=dotenv&logoColor=black)](https://www.npmjs.com/package/dotenv)
 [![ESLint](https://img.shields.io/badge/ESLint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white)](https://eslint.org/)
-[![Nodemon](https://img.shields.io/badge/Nodemon-76D04B?style=for-the-badge&logo=nodemon&logoColor=white)](https://nodemon.io/)
+[![tsx](https://img.shields.io/badge/tsx-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://tsx.is/)
 
 ## Tech Stack & Dependencies
 
 ### Core Technologies
 
-- Node.js
-- TypeScript
-- Express.js
+- Node.js 24+ (native ES modules)
+- TypeScript 6
+- Express 5
 - PostgreSQL
-- Prisma ORM
+- Prisma ORM 7 (with the `pg` driver adapter)
 
 ### Key Dependencies
 
@@ -35,56 +34,62 @@ The Node Authentication Template is a robust, secure, and feature-rich authentic
 
 - jsonwebtoken: JWT implementation for token-based authentication
 - bcryptjs: Password hashing library
-- speakeasy & qrcode: TOTP-based two-factor authentication
+- otplib & qrcode: TOTP-based two-factor authentication
 - express-rate-limit: API rate limiting to prevent abuse
 - sanitize-html: Input sanitization to prevent XSS attacks
 
 **Email Services:**
 
-- nodemailer: Email sending functionality
-- googleapis: Google OAuth2 integration for email services
+- nodemailer: Email sending over Gmail with OAuth2 (handles token refresh itself)
 
 **Validation:**
 
-- zod: Schema validation and type checking
+- zod 4: Schema validation and type checking
 
 **Development Tools:**
 
 - dotenv: Environment variable management
-- eslint: Code linting
-- prisma: ORM and database migration tool
-- nodemon: Automatic server restarts during development
-- ts-node: TypeScript execution environment
+- eslint 10 + typescript-eslint: Code linting
+- prisma: Prisma CLI for migrations and client generation
+- tsx: Runs TypeScript directly with watch mode during development
 
 ## Environment Variables
 
-Create a .env file in the root directory with the following variables:
+Copy `.env.example` to `.env` and fill in the values:
 
 ``` .env
-# Server Configurations
-PORT=
-API_VERSION=
-BASE_URL=
+# Server
+PORT=4000
+BASE_URL=/api
+API_VERSION=v1
+NODE_ENV=development
 
-# App Configurations
-SALT_ROUNDS=
+# App
+SALT_ROUNDS=10
 
-# Database Configurations
-DATABASE_URL=
+# Database
+DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DB_NAME
 
-#JWT Configurations
+# JWT
 JWT_SECRET=
 JWT_REFRESH_SECRET=
 
-# Email Configurations
+# Email (Gmail over OAuth2)
+USER_EMAIL=
 CLIENT_ID=
 CLIENT_SECRET=
 REFRESH_TOKEN=
-USER_EMAIL=
-REDIRECT_URI=
 ```
 
+`DATABASE_URL` is read by both the app and the Prisma CLI (through `prisma.config.ts`).
+
 ## Running the Application
+
+### Requirements
+
+- Node.js 24 or newer (an `.nvmrc` is included)
+- Yarn 1.x
+- A PostgreSQL database
 
 ### Setup
 
@@ -101,9 +106,21 @@ REDIRECT_URI=
    yarn install
    ```
 
+   This also generates the Prisma client into `src/generated/prisma`.
+
 3. **Set up environment variables**
-   - Create a `.env` file in the root directory
-   - Add all required environment variables as described in the section above
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Then fill in the values as described in the section above.
+
+4. **Apply database migrations**
+
+   ```bash
+   yarn db:migrate
+   ```
 
 ### Development Mode
 
@@ -121,35 +138,42 @@ yarn dev
    yarn build
    ```
 
-2. **Start the production server**
+2. **Apply pending migrations and start the server**
 
    ```bash
+   yarn db:deploy
    yarn start
    ```
 
-### Additional Scripts
+### Available Scripts
 
-- **Apply database migrations**
+| Script | Description |
+| --- | --- |
+| `yarn dev` | Start the dev server with `tsx watch` |
+| `yarn build` | Compile TypeScript to `dist/` |
+| `yarn start` | Run the compiled server |
+| `yarn typecheck` | Type-check without emitting |
+| `yarn lint` | Lint the project with ESLint |
+| `yarn db:generate` | Regenerate the Prisma client (runs automatically on install) |
+| `yarn db:migrate` | Create and apply migrations in development |
+| `yarn db:deploy` | Apply pending migrations in production |
+| `yarn db:studio` | Open Prisma Studio |
 
-  ```bash
-  yarn prisma migrate dev
-  ```
-
-- **Generate Prisma client**
-
-  ```bash
-  yarn prisma generate
-  ```
+> Since Prisma 7, `migrate dev` no longer regenerates the client. Run `yarn db:generate` after changing `schema.prisma`.
 
 ## Project Structure
 
 The project follows a modular architecture for better organization and maintainability:
 
 ``` bash
+├── .env.example
 ├── .gitignore
+├── .nvmrc
 ├── eslint.config.mjs
 ├── package.json
+├── prisma.config.ts
 ├── prisma
+│   ├── migrations
 │   └── schema.prisma
 ├── src
 │   ├── api
@@ -162,7 +186,11 @@ The project follows a modular architecture for better organization and maintaina
 │   ├── constants
 │   │   ├── auth.constants.ts
 │   │   └── emailTemplates.ts
+│   ├── generated
+│   │   └── prisma          # generated Prisma client (gitignored)
 │   ├── index.ts
+│   ├── lib
+│   │   └── prisma.ts       # shared PrismaClient instance
 │   ├── mails
 │   │   ├── email.ts
 │   │   └── nodemailer.config.ts
@@ -184,6 +212,7 @@ The project follows a modular architecture for better organization and maintaina
 
 - **api/auth**: Contains all authentication-related logic
 - **constants**: Application-wide constants and configurations
+- **lib**: Shared infrastructure such as the Prisma client
 - **mails**: Email service implementation
 - **middlewares**: Express middlewares for security and request processing
 - **utils**: Utility functions for common operations
