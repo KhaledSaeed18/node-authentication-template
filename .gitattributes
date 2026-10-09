@@ -1,0 +1,10 @@
+# Normalize line endings to LF in the repository
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+
+# Collapse generated files in diffs and leave them out of language stats
+yarn.lock linguist-generated=true -diff
+prisma/migrations/**/migration.sql linguist-generated=true
