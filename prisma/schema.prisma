@@ -42,12 +42,12 @@ model LoginHistory {
   loginTime  DateTime @default(now())
   successful Boolean  @default(true)
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
+  @@index([userId, loginTime(sort: Desc)])
 }
 
 enum CodePurpose {
