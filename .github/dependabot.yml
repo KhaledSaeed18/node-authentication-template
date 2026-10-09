@@ -24,3 +24,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # Upgrade the Node runtime deliberately, together with .nvmrc, types and CI.
+      # Minor and patch updates within the supported major still apply.
+      - dependency-name: "docker/library/node"
+        update-types: ["version-update:semver-major"]

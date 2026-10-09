@@ -1,18 +1,28 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/header/glow.svg?title=Node+Authentication+Template&amp;subtitle=Passkeys%2C+OpenID+Connect+%26+secure+sessions&amp;logo=lu%3AShieldCheck&amp;theme=emerald&amp;pattern=grid&amp;font=space-grotesk&amp;mode=dark" />
+    <img src="https://shieldcn.dev/header/glow.svg?title=Node+Authentication+Template&amp;subtitle=Passkeys%2C+OpenID+Connect+%26+secure+sessions&amp;logo=lu%3AShieldCheck&amp;theme=emerald&amp;pattern=grid&amp;font=space-grotesk&amp;mode=light" alt="Node Authentication Template — Passkeys, OpenID Connect and secure sessions" width="750" height="260" />
+  </picture>
+</p>
+
 # Node Authentication Template
 
-A secure, modern authentication API for Node.js, built with TypeScript, Express 5, Prisma 7 and PostgreSQL. It covers the full account lifecycle (signup, email verification, passkeys, password sign in and reset, TOTP two-factor authentication with recovery codes, rotating refresh tokens and session management) and is meant to be dropped into a project or used as the starting point of one.
+A secure, modern authentication API and headless OpenID Connect provider for Node.js, built with TypeScript, Express 5, Prisma 7 and PostgreSQL. It covers the full account lifecycle (signup, email verification, passkeys, password sign in and reset, TOTP two-factor authentication with recovery codes, rotating refresh tokens and session management) and is meant to be dropped into a project or used as the starting point of one.
 
-[![CI](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/codeql.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/codeql.yml)
-[![Container](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/container.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/container.yml)
-[![Node.js](https://img.shields.io/badge/Node.js-24-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Express.js](https://img.shields.io/badge/Express-5-404D59?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![Prisma](https://img.shields.io/badge/Prisma-7-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)](https://www.prisma.io/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Zod](https://img.shields.io/badge/Zod-4-3068b7?style=for-the-badge&logo=zod&logoColor=white)](https://zod.dev/)
-[![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
-[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![CI](https://shieldcn.dev/github/ci/KhaledSaeed18/node-authentication-template.svg?workflow=ci.yml&branch=main&label=CI&variant=outline)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml)
+[![CodeQL](https://shieldcn.dev/github/ci/KhaledSaeed18/node-authentication-template.svg?workflow=codeql.yml&branch=main&label=CodeQL&variant=outline)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/codeql.yml)
+[![Container](https://shieldcn.dev/github/ci/KhaledSaeed18/node-authentication-template.svg?workflow=container.yml&branch=main&label=Container&variant=outline)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/container.yml)
+
+[![Node.js](https://shieldcn.dev/badge/Node.js-24-43853d.svg?logo=nodedotjs&variant=outline)](https://nodejs.org/)
+[![TypeScript](https://shieldcn.dev/badge/TypeScript-6-3178c6.svg?logo=typescript&variant=outline)](https://www.typescriptlang.org/)
+[![Express](https://shieldcn.dev/badge/Express-5-404d59.svg?logo=express&variant=outline)](https://expressjs.com/)
+[![Prisma](https://shieldcn.dev/badge/Prisma-7-2d3748.svg?logo=prisma&variant=outline)](https://www.prisma.io/)
+[![PostgreSQL](https://shieldcn.dev/badge/PostgreSQL-18-4169e1.svg?logo=postgresql&variant=outline)](https://www.postgresql.org/)
+[![Zod](https://shieldcn.dev/badge/Zod-4-3e67b1.svg?logo=zod&variant=outline)](https://zod.dev/)
+[![Vitest](https://shieldcn.dev/badge/Vitest-5-6e9f18.svg?logo=vitest&variant=outline)](https://vitest.dev/)
+[![Docker](https://shieldcn.dev/badge/Docker-ready-2496ed.svg?logo=docker&variant=outline)](https://www.docker.com/)
+
+[Quick start](#quick-start) · [API reference](#api) · [Deployment](#deployment) · [Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md)
 
 ## Features
 
@@ -104,7 +114,7 @@ This starts PostgreSQL, Redis, [Mailpit](https://mailpit.axllent.org/) and the A
 - API: <http://localhost:4000/api/v1>
 - Emails sent by the API: <http://localhost:8025>
 
-The container runs with `NODE_ENV=production`, so the API reference is off unless you set `API_DOCS_ENABLED=true`. Host ports can be changed with `API_PORT`, `DB_PORT`, `REDIS_PORT`, `MAILPIT_UI_PORT` and `MAILPIT_SMTP_PORT`.
+The container runs with `NODE_ENV=production`, so the API reference is off by default. To enable it in Compose, add `API_DOCS_ENABLED: "true"` to the `api` service's `environment` in `compose.yaml`. Host ports can be changed with `API_PORT`, `DB_PORT`, `REDIS_PORT`, `MAILPIT_UI_PORT` and `MAILPIT_SMTP_PORT`.
 
 ### Locally
 
@@ -177,7 +187,7 @@ All settings are environment variables, validated at startup: the server refuses
 
 ## API
 
-The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json`). All routes below are under `/api/v1` except the probes. Protected routes expect `Authorization: Bearer <accessToken>`.
+The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json`). Account and client-management routes below are under `/api/v1`; `/.well-known/jwks.json`, `/health` and `/ready` are served at the root. Protected routes expect `Authorization: Bearer <accessToken>`.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
@@ -356,7 +366,7 @@ Emails are captured by an in-memory mailer, so tests read the codes directly.
 - Build two images from the Dockerfile:
   - `docker build -t node-auth .` (target `runtime`, the default): the API. Runs as a non-root user, has a health check on `/health`, contains only what the server loads (no Prisma CLI, npm or yarn).
   - `docker build --target migrate -t node-auth-migrate .`: runs `prisma migrate deploy` and exits. Run it as a release step before starting new API instances.
-- Both are built, migrated against a real PostgreSQL, smoke tested and scanned by CI on every push.
+- CI builds both images, applies migrations against a real PostgreSQL database, smoke tests the API and scans the runtime image on pushes to `main` and pull requests.
 - Set `NODE_ENV=production`, the required secrets, `TRUST_PROXY` when behind a load balancer and `REDIS_URL` when running more than one instance.
 - Schedule `node dist/scripts/cleanup.js`, for example daily.
 - Emails are delivered by the outbox worker, which runs inside each API instance by default. To scale it separately, set `OUTBOX_WORKER_ENABLED=false` on the API and run `node dist/scripts/worker.js` as its own deployment; any number of workers can run at once.

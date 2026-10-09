@@ -1,7 +1,7 @@
 {
   "name": "node-authentication-template",
   "version": "3.2.0",
-  "description": "Secure authentication API for Node.js: email verification, TOTP 2FA with recovery codes, rotating refresh tokens, session management, Argon2id, Prisma and PostgreSQL",
+  "description": "Authentication API and OpenID Connect provider for Node.js: WebAuthn passkeys, TOTP 2FA, rotating refresh tokens, session management, Argon2id, TypeScript, Express, Prisma and PostgreSQL",
   "private": true,
   "type": "module",
   "license": "MIT",

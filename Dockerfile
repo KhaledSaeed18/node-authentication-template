@@ -1,5 +1,6 @@
 # Official Node image, pulled from the AWS mirror of Docker Hub's library (no anonymous rate limit)
-FROM public.ecr.aws/docker/library/node:26-alpine AS base
+# Keep the runtime major aligned with .nvmrc and @types/node.
+FROM public.ecr.aws/docker/library/node:24-alpine AS base
 WORKDIR /app
 
 # All dependencies; postinstall generates the Prisma client
