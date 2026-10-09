@@ -9,6 +9,11 @@ updates:
       # One PR for all minor/patch bumps, majors still come one by one
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Node types follow the Node version the app runs on (.nvmrc, engines, Docker image);
+      # bump them together with the runtime instead
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
