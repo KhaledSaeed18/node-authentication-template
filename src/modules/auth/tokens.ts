@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import type { Role } from '../../generated/prisma/enums.js';
 import { UnauthorizedError } from '../../shared/errors/app-error.js';
+import { deriveKey } from '../../shared/utils/crypto.js';
 
 export interface TokenClaims {
     userId: string;
@@ -45,3 +46,34 @@ const verify = (token: string, secret: string): TokenClaims => {
 
 export const signAccessToken = (claims: TokenClaims) => sign(claims, env.JWT_SECRET, env.ACCESS_TOKEN_TTL);
 export const verifyAccessToken = (token: string) => verify(token, env.JWT_SECRET);
+
+// Proof that the password step of a 2FA signin succeeded. Short-lived, signed with
+// its own key and purpose so it can't be used as an access token or vice versa.
+const MFA_TOKEN_TTL = '5m';
+const mfaKey = deriveKey('mfa-token');
+const MFA_PURPOSE = 'mfa';
+
+export const signMfaToken = (userId: string): string =>
+    jwt.sign({ purpose: MFA_PURPOSE }, mfaKey, {
+        algorithm: 'HS256',
+        subject: userId,
+        issuer: env.JWT_ISSUER,
+        audience: env.JWT_AUDIENCE,
+        expiresIn: MFA_TOKEN_TTL,
+    });
+
+export const verifyMfaToken = (token: string): string => {
+    try {
+        const payload = jwt.verify(token, mfaKey, {
+            algorithms: ['HS256'],
+            issuer: env.JWT_ISSUER,
+            audience: env.JWT_AUDIENCE,
+        }) as jwt.JwtPayload;
+
+        if (payload.purpose !== MFA_PURPOSE || !payload.sub) throw new Error('Wrong token purpose');
+        return payload.sub;
+    } catch {
+        throw new UnauthorizedError('Two-factor session expired, please sign in again', 'INVALID_MFA_TOKEN');
+    }
+};
+

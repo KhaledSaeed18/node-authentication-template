@@ -180,13 +180,14 @@ describe('two-factor authentication', () => {
         await nextTotpWindow();
 
         const pending = await signin(email, password).expect(200);
-        expect(pending.body.data.requiresOtp).toBe(true);
+        expect(pending.body.data.requiresTwoFactor).toBe(true);
         expect(pending.body.data.accessToken).toBeUndefined();
+        const { mfaToken } = pending.body.data;
 
-        await request(app).post(`${auth}/2fa/signin`).send({ email, password, token: '000000' }).expect(401);
+        await request(app).post(`${auth}/2fa/signin`).send({ mfaToken, code: '000000' }).expect(401);
         const done = await request(app)
             .post(`${auth}/2fa/signin`)
-            .send({ email, password, token: generateSync({ secret }) })
+            .send({ mfaToken, code: generateSync({ secret }) })
             .expect(200);
         expect(done.body.data.accessToken).toEqual(expect.any(String));
         await nextTotpWindow();
@@ -214,9 +215,10 @@ describe('two-factor authentication', () => {
         const { body } = await signin(email, password).expect(200);
         const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
 
-        const token = generateSync({ secret });
-        await request(app).post(`${auth}/2fa/signin`).send({ email, password, token }).expect(200);
-        await request(app).post(`${auth}/2fa/signin`).send({ email, password, token }).expect(401);
+        const { mfaToken } = (await signin(email, password).expect(200)).body.data;
+        const code = generateSync({ secret });
+        await request(app).post(`${auth}/2fa/signin`).send({ mfaToken, code }).expect(200);
+        await request(app).post(`${auth}/2fa/signin`).send({ mfaToken, code }).expect(401);
     });
 
     it('keeps working for secrets stored in plaintext by older versions', async () => {
@@ -224,12 +226,44 @@ describe('two-factor authentication', () => {
         const legacySecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
         await prisma.user.update({ where: { email }, data: { totpSecret: legacySecret, totpEnabled: true } });
 
+        const { mfaToken } = (await signin(email, password).expect(200)).body.data;
         await request(app)
             .post(`${auth}/2fa/signin`)
-            .send({ email, password, token: generateSync({ secret: legacySecret }) })
+            .send({ mfaToken, code: generateSync({ secret: legacySecret }) })
             .expect(200);
 
         const user = await prisma.user.findUniqueOrThrow({ where: { email } });
         expect(user.totpSecret).toMatch(/^v1:/);
+    });
+
+    it('only accepts a challenge token from a correct password step', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+
+        // An access token is not a challenge token
+        const forged = await request(app)
+            .post(`${auth}/2fa/signin`)
+            .send({ mfaToken: body.data.accessToken, code: generateSync({ secret }) })
+            .expect(401);
+        expect(forged.body.code).toBe('INVALID_MFA_TOKEN');
+
+        await signin(email, 'Wr0ng$Password').expect(401);
+    });
+
+    it('locks the account after too many wrong codes', async () => {
+        const { email, password } = await createVerifiedUser();
+        const { body } = await signin(email, password).expect(200);
+        const secret = await enable2FA(`Bearer ${body.data.accessToken}`);
+        const { mfaToken } = (await signin(email, password).expect(200)).body.data;
+
+        for (let i = 0; i < 5; i++) {
+            await request(app).post(`${auth}/2fa/signin`).send({ mfaToken, code: '000000' }).expect(401);
+        }
+        const locked = await request(app)
+            .post(`${auth}/2fa/signin`)
+            .send({ mfaToken, code: generateSync({ secret }) })
+            .expect(429);
+        expect(locked.body.code).toBe('ACCOUNT_LOCKED');
     });
 });

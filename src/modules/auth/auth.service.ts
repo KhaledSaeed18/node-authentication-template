@@ -21,7 +21,7 @@ import type {
     VerifyEmailInput,
 } from './auth.schemas.js';
 import type { SessionService } from './session.service.js';
-import { signAccessToken } from './tokens.js';
+import { signAccessToken, signMfaToken, verifyMfaToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, openTOTPSecret, sealTOTPSecret, verifyTOTP } from './totp.js';
 import { CODE_TTL_MINUTES, VerificationCodeService } from './verification-code.service.js';
 
@@ -34,8 +34,8 @@ export interface RequestContext {
 export type PublicUser = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'isVerified' | 'totpEnabled'>;
 
 export type SigninResult =
-    | { requiresOtp: true; user: Pick<User, 'id' | 'email' | 'firstName' | 'lastName'> }
-    | { requiresOtp: false; user: PublicUser; accessToken: string; refreshToken: string };
+    | { requiresTwoFactor: true; mfaToken: string }
+    | { requiresTwoFactor: false; user: PublicUser; accessToken: string; refreshToken: string };
 
 export const toPublicUser = (user: User): PublicUser => ({
     id: user.id,
@@ -198,16 +198,14 @@ export class AuthService {
 
         if (!user.isVerified) throw notVerified();
 
+        // Password is right but a second factor is needed: hand out a short-lived challenge token
         if (user.totpEnabled) {
-            return {
-                requiresOtp: true,
-                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
-            };
+            return { requiresTwoFactor: true, mfaToken: signMfaToken(user.id) };
         }
 
         await this.recordLoginAttempt(user.id, context, true);
 
-        return { requiresOtp: false, user: toPublicUser(user), ...(await this.startSession(user, context)) };
+        return { requiresTwoFactor: false, user: toPublicUser(user), ...(await this.startSession(user, context)) };
     }
 
     async logout(sessionId: string): Promise<void> {
@@ -350,27 +348,19 @@ export class AuthService {
         await this.db.user.update({ where: { id: userId }, data: { totpEnabled: true } });
     }
 
-    async signin2FA({ email, password, token }: Signin2FAInput, context: RequestContext) {
-        const user = await this.db.user.findUnique({ where: { email } });
-        if (!user) {
-            await verifyAgainstDummy(password);
-            throw invalidCredentials();
+    // Second step of a 2FA signin: the challenge token from signin plus a TOTP code.
+    // Wrong codes count towards the account lockout.
+    async signin2FA({ mfaToken, code }: Signin2FAInput, context: RequestContext) {
+        const user = await this.db.user.findUnique({ where: { id: verifyMfaToken(mfaToken) } });
+        if (!user?.totpEnabled) {
+            throw new UnauthorizedError('Two-factor session expired, please sign in again', 'INVALID_MFA_TOKEN');
         }
 
         await this.assertNotLocked(user.id);
 
-        if (!(await this.checkPassword(user, password))) {
+        if (!(await this.checkTOTP(user, code))) {
             await this.recordLoginAttempt(user.id, context, false);
-            throw invalidCredentials();
-        }
-
-        if (!user.isVerified) throw notVerified();
-
-        if (user.totpEnabled) {
-            if (!(await this.checkTOTP(user, token))) {
-                await this.recordLoginAttempt(user.id, context, false);
-                throw new UnauthorizedError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
-            }
+            throw new UnauthorizedError('Invalid two-factor code', 'INVALID_TWO_FACTOR_CODE');
         }
 
         await this.recordLoginAttempt(user.id, context, true);

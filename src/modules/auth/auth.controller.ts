@@ -21,18 +21,12 @@ export class AuthController {
     signin = async (req: Request, res: Response) => {
         const result = await this.authService.signin(req.body, requestContext(req));
 
-        if (result.requiresOtp) {
-            res.status(200).json({
-                status: 'pending',
-                statusCode: 200,
-                message: '2FA verification required',
-                data: { requiresOtp: true, user: result.user },
-            });
+        if (result.requiresTwoFactor) {
+            sendSuccess(res, 200, 'Two-factor authentication required', result);
             return;
         }
 
-        const { user, accessToken, refreshToken } = result;
-        sendSuccess(res, 200, 'User signed in successfully', { user, accessToken, refreshToken });
+        sendSuccess(res, 200, 'User signed in successfully', result);
     };
 
     logout = async (req: Request, res: Response) => {

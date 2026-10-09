@@ -105,15 +105,13 @@ export const verify2FASchema = z.object({
         .regex(/^\d+$/, "Token must contain only digits"),
 });
 
-// Validate 2FA token schema (for login)
+// Second step of a 2FA signin
 export const signin2FASchema = z.object({
-    email: emailField("Invalid email format"),
-    token: z.string()
+    mfaToken: z.string().min(1, "mfaToken is required"),
+    code: z.string()
         .trim()
-        .min(6, "Token must be at least 6 characters")
-        .max(6, "Token must be at most 6 characters")
-        .regex(/^\d+$/, "Token must contain only digits"),
-    password: z.string().min(1, "Password is required"),
+        .length(6, "Code must be 6 digits")
+        .regex(/^\d+$/, "Code must contain only digits"),
 });
 
 // Disable 2FA schema
