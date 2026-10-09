@@ -175,17 +175,18 @@ export class OidcService {
     }
 
     // POST /oauth/token
-    async token(params: Params, authorization: string | undefined, context: RequestContext): Promise<TokenResponse> {
+    private async authenticateClient(params: Params, authorization: string | undefined): Promise<OAuthClient> {
         const basic = this.parseBasicAuth(authorization);
         const bodyClientId = stringParam(params, 'client_id');
         if (basic && bodyClientId && bodyClientId !== basic.clientId) {
             throw invalidRequest('client_id does not match the authenticated client');
         }
 
-        const client = await this.clients.authenticate(
-            basic?.clientId ?? bodyClientId,
-            basic?.clientSecret ?? stringParam(params, 'client_secret')
-        );
+        return this.clients.authenticate(basic?.clientId ?? bodyClientId, basic?.clientSecret ?? stringParam(params, 'client_secret'));
+    }
+
+    async token(params: Params, authorization: string | undefined, context: RequestContext): Promise<TokenResponse> {
+        const client = await this.authenticateClient(params, authorization);
 
         switch (stringParam(params, 'grant_type')) {
             case 'authorization_code':
@@ -309,6 +310,76 @@ export class OidcService {
         );
     }
 
+    // The session behind an access or refresh token, if that token was issued to this client
+    private async resolveClientToken(client: OAuthClient, token: string) {
+        // Access tokens are JWTs (three parts); refresh tokens are "<sessionId>.<secret>"
+        if (token.split('.').length === 3) {
+            let claims;
+            try {
+                // Fails for tokens addressed to anyone else
+                claims = await this.accessTokens.verify(token, client.id);
+            } catch {
+                return null;
+            }
+            const session = await this.db.session.findUnique({ where: { id: claims.sessionId } });
+            if (!session || session.clientId !== client.id) return null;
+            const payload = jwt.decode(token) as jwt.JwtPayload;
+            return { session, type: 'access_token' as const, exp: payload.exp!, iat: payload.iat! };
+        }
+
+        const dot = token.indexOf('.');
+        if (dot <= 0) return null;
+        const session = await this.db.session.findUnique({ where: { id: token.slice(0, dot) } });
+        if (!session || session.clientId !== client.id || !safeEqual(sha256(token.slice(dot + 1)), session.tokenHash)) {
+            return null;
+        }
+        return {
+            session,
+            type: 'refresh_token' as const,
+            exp: Math.floor(session.expiresAt.getTime() / 1000),
+            iat: Math.floor(session.createdAt.getTime() / 1000),
+        };
+    }
+
+    // POST /oauth/introspect (RFC 7662): lets a client's backend ask whether a token is
+    // still active, which offline JWKS verification can't tell after a revocation.
+    // Only confidential clients, and only for tokens issued to them.
+    async introspect(params: Params, authorization: string | undefined) {
+        const client = await this.authenticateClient(params, authorization);
+        if (!client.secretHash) throw new OAuthError('invalid_client', 'Only confidential clients can introspect tokens', 401);
+
+        const token = stringParam(params, 'token');
+        if (!token) throw invalidRequest('token is required');
+
+        const found = await this.resolveClientToken(client, token);
+        const now = Date.now();
+        if (!found || found.session.revokedAt || found.session.expiresAt.getTime() < now || found.exp * 1000 < now) {
+            return { active: false };
+        }
+
+        return {
+            active: true,
+            client_id: client.id,
+            sub: found.session.userId,
+            scope: found.session.scope ?? '',
+            token_type: found.type,
+            exp: found.exp,
+            iat: found.iat,
+            sid: found.session.id,
+        };
+    }
+
+    // POST /oauth/revoke (RFC 7009): ends the session behind one of the client's tokens.
+    // Always succeeds, so it can't be used to test whether a token is valid.
+    async revoke(params: Params, authorization: string | undefined): Promise<void> {
+        const client = await this.authenticateClient(params, authorization);
+        const token = stringParam(params, 'token');
+        if (!token) throw invalidRequest('token is required');
+
+        const found = await this.resolveClientToken(client, token);
+        if (found) await this.sessions.revoke(found.session.id);
+    }
+
     // GET/POST /oauth/userinfo with an access token issued to a client
     async userinfo(authorization: string | undefined) {
         const [scheme, token] = authorization?.split(' ') ?? [];
@@ -342,6 +413,10 @@ export class OidcService {
             authorization_endpoint: `${base}/oauth/authorize`,
             token_endpoint: `${base}/oauth/token`,
             userinfo_endpoint: `${base}/oauth/userinfo`,
+            introspection_endpoint: `${base}/oauth/introspect`,
+            revocation_endpoint: `${base}/oauth/revoke`,
+            introspection_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+            revocation_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
             jwks_uri: `${base}/.well-known/jwks.json`,
             response_types_supported: ['code'],
             response_modes_supported: ['query'],

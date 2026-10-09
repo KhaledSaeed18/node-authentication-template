@@ -39,6 +39,15 @@ export class OidcController {
         noStore(res).json(tokens);
     };
 
+    introspect = async (req: Request, res: Response) => {
+        noStore(res).json(await this.oidc.introspect(req.body ?? {}, req.get('authorization')));
+    };
+
+    revoke = async (req: Request, res: Response) => {
+        await this.oidc.revoke(req.body ?? {}, req.get('authorization'));
+        noStore(res).status(200).end();
+    };
+
     userinfo = async (req: Request, res: Response) => {
         noStore(res).json(await this.oidc.userinfo(req.get('authorization')));
     };

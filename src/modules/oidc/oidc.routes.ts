@@ -31,6 +31,8 @@ export const createOidcRouter = (controller: OidcController, authenticate: Reque
         controller.completeInteraction
     );
     router.post('/oauth/token', protocolLimiter, formBody, controller.token);
+    router.post('/oauth/introspect', protocolLimiter, formBody, controller.introspect);
+    router.post('/oauth/revoke', protocolLimiter, formBody, controller.revoke);
     router.get('/oauth/userinfo', protocolLimiter, controller.userinfo);
     router.post('/oauth/userinfo', protocolLimiter, formBody, controller.userinfo);
 

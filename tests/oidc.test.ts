@@ -318,3 +318,43 @@ describe('consent and token separation', () => {
             .expect(400);
     });
 });
+
+describe('token introspection and revocation', () => {
+    it('reports tokens as active until the client revokes them', async () => {
+        const { clientId, clientSecret } = await registerClient();
+        const config = await configFor(clientId, clientSecret);
+        const tokens = await exchange(config, await authorize(config));
+
+        const active = await client.tokenIntrospection(config, tokens.access_token);
+        expect(active).toMatchObject({ active: true, client_id: clientId, token_type: 'access_token', sub: tokens.claims()!.sub });
+        expect((await client.tokenIntrospection(config, tokens.refresh_token!)).active).toBe(true);
+
+        await client.tokenRevocation(config, tokens.refresh_token!);
+
+        expect((await client.tokenIntrospection(config, tokens.access_token)).active).toBe(false);
+        await request(app).get('/oauth/userinfo').set('Authorization', `Bearer ${tokens.access_token}`).expect(401);
+    });
+
+    it("tells a client nothing about another client's tokens", async () => {
+        const mine = await registerClient();
+        const other = await registerClient();
+        const myConfig = await configFor(mine.clientId, mine.clientSecret);
+        const tokens = await exchange(myConfig, await authorize(myConfig));
+
+        const otherConfig = await configFor(other.clientId, other.clientSecret);
+        expect(await client.tokenIntrospection(otherConfig, tokens.access_token)).toEqual({ active: false });
+
+        // Revoking someone else's token is a silent no-op
+        await client.tokenRevocation(otherConfig, tokens.refresh_token!);
+        expect((await client.tokenIntrospection(myConfig, tokens.access_token)).active).toBe(true);
+    });
+
+    it('only lets confidential clients introspect, and answers revocation of unknown tokens with 200', async () => {
+        const { clientId } = await registerClient({ confidential: false });
+
+        const res = await request(app).post('/oauth/introspect').type('form').send({ client_id: clientId, token: 'x' }).expect(401);
+        expect(res.body.error).toBe('invalid_client');
+
+        await request(app).post('/oauth/revoke').type('form').send({ client_id: clientId, token: 'garbage' }).expect(200);
+    });
+});
