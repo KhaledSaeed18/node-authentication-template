@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
+import type { PrismaClient } from '../src/generated/prisma/client.js';
 import { prisma } from '../src/lib/prisma.js';
 import { InMemoryMailer } from './helpers.js';
 
@@ -20,5 +21,11 @@ describe('health probes', () => {
     it('reports not ready while shutting down', async () => {
         const app = createApp({ mailer: new InMemoryMailer(), health: { shuttingDown: true } });
         await request(app).get('/ready').expect(503);
+    });
+
+    it('reports not ready when the database is down', async () => {
+        const unreachable = { $queryRaw: () => Promise.reject(new Error('connection refused')) } as unknown as PrismaClient;
+        const res = await request(createApp({ mailer: new InMemoryMailer(), db: unreachable })).get('/ready').expect(503);
+        expect(res.body.checks.database).toBe('error');
     });
 });

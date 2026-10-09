@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { env } from '../../config/env.js';
 import { Prisma } from '../../generated/prisma/client.js';
+import { logger } from '../../lib/logger.js';
 import { AppError, ConflictError, NotFoundError } from '../errors/app-error.js';
 
 // Errors thrown by express.json() (body-parser) carry a type and an HTTP status
@@ -38,7 +39,8 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
 
     if (!appError) {
         // Unexpected error: log everything, tell the client nothing specific
-        req.log.error({ err }, 'Unhandled error');
+        // req.log is missing for routes mounted before the request logger
+        (req.log ?? logger).error({ err }, 'Unhandled error');
     }
 
     const statusCode = appError?.statusCode ?? 500;
