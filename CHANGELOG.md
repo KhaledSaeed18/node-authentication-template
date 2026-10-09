@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 3.0.0
+
+Passkeys, a transactional outbox, ES256 access tokens with a public JWKS, an account activity log with security alerts, OpenTelemetry, security automation in CI, and design documents (architecture, ADRs, threat model).
 
 ### Breaking changes
 
