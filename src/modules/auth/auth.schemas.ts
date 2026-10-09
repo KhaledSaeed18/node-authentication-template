@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { personName } from '../../shared/validation/fields.js';
 import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from './auth.constants.js';
 
 // Trim and lowercase first, then check the format (z.email() alone rejects surrounding
@@ -27,17 +28,8 @@ const passwordField = z
 
 // Signup schema
 export const signupSchema = z.object({
-    firstName: z.string()
-        .trim()
-        .min(1, "First name is required")
-        .max(50, "First name cannot exceed 50 characters")
-        .regex(/^[a-zA-Z\s]+$/, "First name can only contain letters and spaces"),
-
-    lastName: z.string()
-        .trim()
-        .min(1, "Last name is required")
-        .max(50, "Last name cannot exceed 50 characters")
-        .regex(/^[a-zA-Z\s]+$/, "Last name can only contain letters and spaces"),
+    firstName: personName("First name"),
+    lastName: personName("Last name"),
 
     email: emailField("Invalid email format")
         .refine(isAllowedDomain, "This email domain is not allowed. Please use a different email address"),
