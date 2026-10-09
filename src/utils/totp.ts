@@ -1,5 +1,6 @@
 import { generateSecret, generateURI, verify } from 'otplib';
 import QRCode from 'qrcode';
+import { logger } from '../lib/logger.js';
 
 const ISSUER = 'App name';
 
@@ -30,7 +31,7 @@ export const verifyTOTP = async (token: string, secret: string): Promise<boolean
         const result = await verify({ secret, token, epochTolerance: 30 });
         return result.valid;
     } catch (error) {
-        console.error('Error verifying TOTP token:', error);
+        logger.warn({ err: error }, 'TOTP verification failed');
         return false;
     }
 };

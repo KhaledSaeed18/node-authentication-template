@@ -4,6 +4,7 @@ import { ErrorMiddleware } from './middlewares/error.middleware.js';
 import AuthRouter from './api/auth/auth.routes.js';
 import { securityHeaders } from './middlewares/securityHeaders.middleware.js';
 import { env } from './config/env.js';
+import { httpLogger, logger } from './lib/logger.js';
 
 const app: Express = express();
 
@@ -15,6 +16,9 @@ app.use(
         allowedHeaders: ["Content-Type", "Authorization"],
     })
 );
+
+// Request logging
+app.use(httpLogger);
 
 // Security middleware
 app.use(securityHeaders);
@@ -43,8 +47,8 @@ app.use(ErrorMiddleware.handleError);
 
 app.listen(port, (error) => {
     if (error) {
-        console.error('Failed to start server:', error);
+        logger.fatal({ err: error }, 'Failed to start server');
         process.exit(1);
     }
-    console.log(`Server is running on: http://localhost:${port}`);
+    logger.info(`Server is running on: http://localhost:${port}`);
 });
