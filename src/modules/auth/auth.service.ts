@@ -18,6 +18,7 @@ import { enqueue, type OutboxJobs } from '../outbox/outbox.js';
 import { type PublicUser, toPublicUser } from '../users/users.mapper.js';
 import type {
     ChangePasswordInput,
+    DeleteAccountInput,
     PasskeySigninInput,
     RegisterPasskeyInput,
     ResetPasswordInput,
@@ -500,6 +501,30 @@ export class AuthService {
             });
             await tx.recoveryCode.deleteMany({ where: { userId } });
             await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Two-factor authentication was turned off', context));
+        });
+    }
+
+    // Permanently deletes the account and everything linked to it (sessions, passkeys,
+    // history, ...). Requires the password, and a second factor when 2FA is on, so a
+    // stolen access token alone can't do it.
+    async deleteAccount(userId: string, { password, code }: DeleteAccountInput, context?: RequestContext): Promise<void> {
+        const user = await this.findUserById(userId);
+
+        if (!(await this.checkPassword(user, password))) {
+            throw new BadRequestError('Password is incorrect', 'INVALID_PASSWORD');
+        }
+        if (user.totpEnabled && !(code && (await this.checkSecondFactor(user, code, context)))) {
+            throw new BadRequestError('A valid two-factor code is required', 'INVALID_TWO_FACTOR_CODE');
+        }
+
+        await this.db.$transaction(async (tx) => {
+            await enqueue(tx, 'email.account-deleted', {
+                email: user.email,
+                name: user.firstName,
+                occurredAt: new Date().toISOString(),
+                ipAddress: context?.ipAddress ?? null,
+            });
+            await tx.user.delete({ where: { id: userId } });
         });
     }
 

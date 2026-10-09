@@ -95,7 +95,7 @@ const totpCode = z
     .regex(/^\d{6}$/, "Code must be 6 digits");
 
 // Authenticator code or one of the recovery codes (xxxx-xxxx)
-const secondFactorCode = z
+export const secondFactorCode = z
     .string()
     .trim()
     .regex(/^(\d{6}|[a-zA-Z0-9]{4}-?[a-zA-Z0-9]{4})$/, "Enter the 6 digit code or a recovery code");
@@ -183,6 +183,12 @@ export const passkeyIdParamsSchema = z.object({
     passkeyId: base64url.max(1024),
 });
 
+// Deleting the account asks for the password again, and a 2FA code when 2FA is on
+export const deleteAccountSchema = z.object({
+    password: z.string().min(1, 'Password is required').max(64),
+    code: secondFactorCode.optional(),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type SigninInput = z.infer<typeof signinSchema>;
@@ -197,3 +203,4 @@ export type Disable2FAInput = z.infer<typeof disable2FASchema>;
 export type RegenerateRecoveryCodesInput = z.infer<typeof regenerateRecoveryCodesSchema>;
 export type RegisterPasskeyInput = z.infer<typeof registerPasskeySchema>;
 export type PasskeySigninInput = z.infer<typeof passkeySigninSchema>;
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;

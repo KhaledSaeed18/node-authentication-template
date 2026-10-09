@@ -15,6 +15,8 @@ declare module '../outbox/outbox.js' {
         'email.verification': { email: string };
         'email.password-reset': { email: string };
         'email.security-notice': { userId: string; event: string; occurredAt: string; ipAddress: string | null };
+        // The user no longer exists when this runs, so the payload carries the address
+        'email.account-deleted': { email: string; name: string; occurredAt: string; ipAddress: string | null };
     }
 }
 
@@ -28,7 +30,10 @@ export const createAuthJobHandlers = ({
     db,
     mailer,
     codes,
-}: AuthJobDependencies): Pick<OutboxHandlers, 'email.verification' | 'email.password-reset' | 'email.security-notice'> => {
+}: AuthJobDependencies): Pick<
+    OutboxHandlers,
+    'email.verification' | 'email.password-reset' | 'email.security-notice' | 'email.account-deleted'
+> => {
     // The resend cooldown only applies to the first try; a retry after a failed send
     // must go through, otherwise a mail outage would swallow the email
     const issueCode = async (userId: string, purpose: CodePurpose, attempt: number): Promise<string | null> => {
@@ -64,6 +69,13 @@ export const createAuthJobHandlers = ({
             await mailer.send(
                 user.email,
                 passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code, minutes: CODE_TTL_MINUTES })
+            );
+        },
+
+        'email.account-deleted': async ({ email, name, occurredAt, ipAddress }) => {
+            await mailer.send(
+                email,
+                securityNoticeEmail({ appName: env.APP_NAME, name, event: 'Your account was deleted', time: new Date(occurredAt), ipAddress })
             );
         },
 

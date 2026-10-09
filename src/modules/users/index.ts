@@ -4,11 +4,20 @@ import { UsersController } from './users.controller.js';
 import { createUsersRouter } from './users.routes.js';
 import { UsersService } from './users.service.js';
 import { SecurityEventsService } from '../audit/security-events.js';
+import type { AuthService } from '../auth/auth.service.js';
 
-export const createUsersModule = ({ db, authenticate }: { db: PrismaClient; authenticate: RequestHandler }) => {
+export const createUsersModule = ({
+    db,
+    authenticate,
+    authService,
+}: {
+    db: PrismaClient;
+    authenticate: RequestHandler;
+    authService: AuthService;
+}) => {
     const service = new UsersService(db);
     return {
         service,
-        router: createUsersRouter(new UsersController(service, new SecurityEventsService(db)), authenticate),
+        router: createUsersRouter(new UsersController(service, new SecurityEventsService(db), authService), authenticate),
     };
 };

@@ -3,13 +3,23 @@ import { currentUser } from '../../shared/middlewares/authenticate.js';
 import { sendSuccess } from '../../shared/utils/response.js';
 import type { PaginationQuery } from '../../shared/validation/pagination.js';
 import type { SecurityEventsService } from '../audit/security-events.js';
+import type { AuthService } from '../auth/auth.service.js';
 import type { UsersService } from './users.service.js';
 
 export class UsersController {
     constructor(
         private readonly usersService: UsersService,
-        private readonly securityEvents: SecurityEventsService
+        private readonly securityEvents: SecurityEventsService,
+        private readonly authService: AuthService
     ) {}
+
+    deleteMe = async (req: Request, res: Response) => {
+        await this.authService.deleteAccount(currentUser(req).userId, req.body, {
+            ipAddress: req.ip ?? null,
+            userAgent: req.get('user-agent') ?? null,
+        });
+        sendSuccess(res, 200, 'Your account has been deleted');
+    };
 
     getMe = async (req: Request, res: Response) => {
         const user = await this.usersService.getProfile(currentUser(req).userId);

@@ -91,7 +91,7 @@ export const buildApplication = (overrides: Partial<AppDependencies> = {}): Appl
     app.use(createKeysRouter(deps.signingKeys));
 
     const auth = createAuthModule(deps);
-    const users = createUsersModule({ db: deps.db, authenticate: auth.authenticate });
+    const users = createUsersModule({ db: deps.db, authenticate: auth.authenticate, authService: auth.service });
     const oidc = createOidcModule({
         db: deps.db,
         sessions: auth.sessions,
