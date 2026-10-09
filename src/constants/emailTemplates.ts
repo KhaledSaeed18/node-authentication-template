@@ -35,7 +35,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="padding-bottom: 20px;">
-                                        <p style="margin: 0;">Hello <strong>{name}</strong>👋,</p>
+                                        <p style="margin: 0;">Hello <strong>{name}</strong>,</p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -157,7 +157,7 @@ export const PASSWORD_RESET_EMAIL_TEMPLATE = `
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td style="padding-bottom: 20px;">
-                                        <p style="margin: 0;">Hello <strong>{name}</strong>👋,</p>
+                                        <p style="margin: 0;">Hello <strong>{name}</strong>,</p>
                                     </td>
                                 </tr>
                                 <tr>
