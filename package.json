@@ -3,10 +3,15 @@
   "version": "1.0.0",
   "main": "dist/index.js",
   "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "dev": "nodemon src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
@@ -39,8 +44,7 @@
     "@typescript-eslint/parser": "^8.25.0",
     "eslint": "^9.21.0",
     "globals": "^16.0.0",
-    "nodemon": "^3.1.9",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.25.0"
   }
