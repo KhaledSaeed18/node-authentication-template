@@ -27,7 +27,6 @@
     "dotenv": "^16.4.7",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.1",
-    "googleapis": "^146.0.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^10.0.16",
     "otplib": "^13.5.0",

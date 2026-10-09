@@ -1,12 +1,11 @@
 import { PASSWORD_RESET_EMAIL_TEMPLATE, VERIFICATION_EMAIL_TEMPLATE } from "../constants/emailTemplates.js";
-import createTransporter from "./nodemailer.config.js";
+import transporter from "./nodemailer.config.js";
 
 // Send verification email
 export const sendVerificationEmail = async (email: string, otpCode: string, name: string) => {
     const recipient = [{ email }];
 
     try {
-        const transporter = await createTransporter();
         const mailOptions = {
             from: `<${process.env.USER_EMAIL}>`,
             to: recipient[0].email,
@@ -27,7 +26,6 @@ export const sendPasswordResetEmail = async (email: string, resetCode: string, n
     const recipient = [{ email }];
 
     try {
-        const transporter = await createTransporter();
         const mailOptions = {
             from: `<${process.env.USER_EMAIL}>`,
             to: recipient[0].email,
