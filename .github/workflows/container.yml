@@ -15,6 +15,22 @@ jobs:
   build-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: auth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v7
 
@@ -30,11 +46,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # The image must start and pass its own health check
+      - name: Build the migration image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: migrate
+          load: true
+          tags: node-auth-migrate:ci
+          cache-from: type=gha
+
+      # Migrate a real database with the migration image, then the API image must start,
+      # pass its own health check and report ready (database and signing keys)
       - name: Smoke test
         run: |
-          docker run -d --name api -p 4000:4000 \
-            -e DATABASE_URL=postgresql://unused:unused@127.0.0.1:5432/unused \
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/auth
+          docker run --rm --network host -e DATABASE_URL=$DATABASE_URL node-auth-migrate:ci
+          docker run -d --name api --network host \
+            -e DATABASE_URL=$DATABASE_URL \
             -e ENCRYPTION_KEY="$(openssl rand -base64 32)" \
             node-auth:ci
           for i in $(seq 1 30); do
@@ -44,7 +72,8 @@ jobs:
           done
           docker logs api
           test "$(docker inspect --format '{{.State.Health.Status}}' api)" = "healthy"
-          curl -fsS http://localhost:4000/health
+          curl -fsS http://localhost:4000/ready
+          docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep node-auth
 
       - name: Scan for vulnerabilities (report)
         uses: aquasecurity/trivy-action@v0.36.0

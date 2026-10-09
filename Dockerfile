@@ -23,20 +23,34 @@ COPY prisma ./prisma
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
     yarn install --frozen-lockfile --production --network-timeout 300000
 
-# Includes the Prisma CLI, schema and migrations so the same image can run
-# `prisma migrate deploy` as a release step
-FROM base AS runtime
+# Only what the server can reach from package.json: drops the Prisma CLI (and TypeScript),
+# which Yarn installs as optional peers but the API never loads
+FROM prod-deps AS runtime-deps
+COPY docker/prune-node-modules.mjs /tmp/
+RUN node /tmp/prune-node-modules.mjs /app prisma typescript
+
+# Shared by the final images: OS patches, and no package managers (the app never uses
+# them at runtime and they carry their own vulnerabilities)
+FROM base AS hardened
 ENV NODE_ENV=production
-# Apply OS security patches, and remove the package managers that ship with the base
-# image: the app never uses them at runtime and they carry their own vulnerabilities
 RUN apk upgrade --no-cache \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
         /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
         /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
+# Release step: applies pending migrations, then exits
+FROM hardened AS migrate
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
 COPY package.json prisma.config.ts ./
 COPY prisma ./prisma
+USER node
+CMD ["node_modules/.bin/prisma", "migrate", "deploy"]
+
+# The API (default target)
+FROM hardened AS runtime
+COPY --from=runtime-deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package.json ./
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \

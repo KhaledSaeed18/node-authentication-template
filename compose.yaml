@@ -38,8 +38,7 @@ services:
   migrate:
     build:
       context: .
-      target: runtime
-    command: ["node_modules/.bin/prisma", "migrate", "deploy"]
+      target: migrate
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/auth
     depends_on:
