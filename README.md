@@ -37,7 +37,8 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 
 **Sessions**
 
-- Short-lived JWT access tokens (15 minutes by default)
+- Short-lived ES256 JWT access tokens (15 minutes by default), verifiable by other services through `/.well-known/jwks.json`
+- Signing keys rotate automatically; private keys are stored encrypted
 - Opaque refresh tokens, rotated on every use, with reuse detection
 - Logout, logout everywhere, list and revoke individual sessions
 - Revocation is immediate: every request checks that the session is still active
@@ -81,7 +82,6 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 ### With Docker
 
 ```bash
-export JWT_SECRET=$(openssl rand -base64 48)
 export ENCRYPTION_KEY=$(openssl rand -base64 32)
 docker compose up --build
 ```
@@ -101,7 +101,7 @@ Requirements: Node.js 24+ (see `.nvmrc`), Yarn 1.x and PostgreSQL (`docker compo
 git clone https://github.com/KhaledSaeed18/node-authentication-template.git
 cd node-authentication-template
 yarn install            # also generates the Prisma client
-cp .env.example .env    # then fill in DATABASE_URL, JWT_SECRET and ENCRYPTION_KEY
+cp .env.example .env    # then fill in DATABASE_URL and ENCRYPTION_KEY
 yarn db:migrate
 yarn dev
 ```
@@ -118,10 +118,10 @@ All settings are environment variables, validated at startup: the server refuses
 | `PORT` | `4000` | HTTP port |
 | `BASE_URL` / `API_VERSION` | `/api` / `v1` | Routes are served under `/api/v1` |
 | `DATABASE_URL` | required | PostgreSQL connection string |
-| `JWT_SECRET` | required | Access token signing secret, 32+ characters |
-| `ENCRYPTION_KEY` | required | 32 random bytes, base64. Keys for code hashing and 2FA secret encryption |
+| `ENCRYPTION_KEY` | required | 32 random bytes, base64. Keys for code hashing and for encrypting 2FA secrets and signing keys |
 | `JWT_ISSUER` / `JWT_AUDIENCE` | `node-auth` / `node-auth-api` | Checked on every access token |
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | `15m` / `7d` | Token lifetimes (`s`, `m`, `h`, `d`) |
+| `SIGNING_KEY_ROTATION_DAYS` | `30` | Age at which a new access token signing key is created |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma separated list of allowed origins |
 | `WEBAUTHN_RP_ID` | `localhost` | Domain passkeys are bound to (e.g. `example.com`) |
 | `WEBAUTHN_ORIGINS` | `http://localhost:3000` | Comma separated front-end origins allowed to use passkeys |
@@ -190,8 +190,28 @@ The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json
 | GET | `/users/me` | yes | Current user |
 | PATCH | `/users/me` | yes | Update first/last name |
 | GET | `/users` | admin | List users (`?limit=&cursor=`) |
+| GET | `/.well-known/jwks.json` | | Public keys for verifying access tokens |
 | GET | `/health` | | Liveness probe |
-| GET | `/ready` | | Readiness probe (database, Redis) |
+| GET | `/ready` | | Readiness probe (database, Redis, signing keys) |
+
+### Verifying tokens in other services
+
+Access tokens are ES256 JWTs with a `kid` header. Any service can verify them with the public keys, without sharing a secret. For example with [jose](https://github.com/panva/jose):
+
+```ts
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+
+const jwks = createRemoteJWKSet(new URL('https://auth.example.com/.well-known/jwks.json'));
+
+const { payload } = await jwtVerify(accessToken, jwks, {
+    issuer: 'node-auth',        // JWT_ISSUER
+    audience: 'node-auth-api',  // JWT_AUDIENCE
+    algorithms: ['ES256'],
+});
+// payload.sub = user id, payload.role, payload.sid = session id
+```
+
+Note that only this service checks whether the session was revoked; other services see a revoked session's token as valid until it expires (15 minutes by default).
 
 ### Responses
 
@@ -229,9 +249,10 @@ Errors carry a stable, machine-readable `code`:
 - **Enumeration**: endpoints that take an email answer the same way whether or not the account exists. Signup still returns 409 for a taken email; that is a deliberate usability tradeoff and it is rate limited.
 - **Refresh tokens** are random, stored as SHA-256 hashes and rotated on every use. A reused token revokes its session (with a 10 second grace window for concurrent refreshes).
 - **Passkeys** require user verification and are tied to `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS`. Challenges are single use and expire after 5 minutes, which is what stops replays for synced passkeys (their signature counter is always 0); for other authenticators a counter that goes backwards is rejected as a likely clone.
+- **Access tokens** are signed with ES256 keys that rotate automatically; verification pins the algorithm and resolves the key by `kid`, so unsigned or HS256-forged tokens are rejected. A signing key that can't be decrypted makes the instance fail closed and report not ready.
 - **2FA secrets** are encrypted with AES-256-GCM. The last accepted time step is stored so a code can't be used twice.
 - **Sessions** end on logout, password reset (all sessions) and password change (all other sessions).
-- **Keep `ENCRYPTION_KEY` safe and stable**: changing it invalidates outstanding codes and makes stored 2FA secrets unreadable.
+- **Keep `ENCRYPTION_KEY` safe and stable**: changing it invalidates outstanding codes and makes stored 2FA secrets and signing keys unreadable.
 
 ## Project Structure
 

@@ -48,7 +48,6 @@ yarn install
 cp .env.example .env
 #    then set at least:
 #    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/auth
-#    JWT_SECRET=<output of: openssl rand -base64 48>
 #    ENCRYPTION_KEY=<output of: openssl rand -base64 32>
 
 # 4. Start PostgreSQL (it also creates the auth_test database) and Mailpit

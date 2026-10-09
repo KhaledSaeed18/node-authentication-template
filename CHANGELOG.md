@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- Access tokens are signed with ES256 instead of HS256. `JWT_SECRET` is no longer used and can be removed. Access tokens issued before the upgrade stop working; clients get a new one through `POST /auth/refresh-token` (refresh tokens are unaffected).
+
 ### Added
+
+- ES256 signing keys stored encrypted in the database, rotated automatically (`SIGNING_KEY_ROTATION_DAYS`), and published at `/.well-known/jwks.json` so other services can verify access tokens.
 
 - Passkeys (WebAuthn): usernameless passwordless sign-in, registration and management (list, rename, remove). New settings `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS`.
 - Transactional outbox: emails and security notices are written as jobs in the same database transaction as the change that triggers them, then delivered by a worker with retries and exponential backoff. The worker runs inside the API (`OUTBOX_WORKER_ENABLED`) or separately (`node dist/scripts/worker.js`).
@@ -10,7 +16,7 @@
 
 ### Changed
 
-- Run `yarn db:deploy` for the new `OutboxMessage`, `Passkey` and `WebAuthnChallenge` tables.
+- Run `yarn db:deploy` for the new `OutboxMessage`, `Passkey`, `WebAuthnChallenge` and `SigningKey` tables.
 - `forgot-password` and `resend-verification` now enqueue a job instead of sending directly.
 
 ## 2.0.0
