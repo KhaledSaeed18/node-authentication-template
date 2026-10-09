@@ -82,6 +82,8 @@ If a port is already taken, change it in `.env` (`PORT`) or for Compose with `DB
 
 ## Architecture
 
+For the bigger picture, see [docs/architecture.md](docs/architecture.md) and the [decision records](docs/adr/README.md). If your change makes a significant design decision, add an ADR.
+
 ```text
 src/
 ├── app.ts            builds the Express app and wires the modules (composition root)

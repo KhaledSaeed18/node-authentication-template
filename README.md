@@ -314,6 +314,12 @@ Emails are captured by an in-memory mailer, so tests read the codes directly.
 - Emails are delivered by the outbox worker, which runs inside each API instance by default. To scale it separately, set `OUTBOX_WORKER_ENABLED=false` on the API and run `node dist/scripts/worker.js` as its own deployment; any number of workers can run at once.
 - Point the readiness probe at `/ready` and the liveness probe at `/health`. On `SIGTERM` the server reports not ready, finishes in-flight requests and closes its connections.
 
+## Design Documents
+
+- [Architecture](docs/architecture.md): components, flows (sign in, refresh rotation, passkeys, outbox) and data model, with diagrams
+- [Architecture decision records](docs/adr/README.md): why opaque rotating refresh tokens, Argon2id, an outbox in PostgreSQL, ES256 with JWKS, passkeys as a full factor, and more
+- [Threat model](docs/threat-model.md): STRIDE analysis with mitigations, the tests that cover them, and residual risks
+
 ## Upgrading from 1.x
 
 See [CHANGELOG.md](CHANGELOG.md) for the breaking changes and new environment variables.
