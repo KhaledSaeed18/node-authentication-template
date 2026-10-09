@@ -3,6 +3,15 @@ import type { Request, Response, NextFunction } from 'express';
 import { errorHandler } from '../../utils/errorHandler.js';
 import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from '../../constants/auth.constants.js';
 
+// Trim first, then check the format (z.email() alone rejects surrounding spaces)
+const emailField = (message: string) => z.string().trim().pipe(z.email(message));
+
+// Refinements still run when the email format check fails, so don't assume an "@"
+const isAllowedDomain = (email: string) => {
+    const domain = email.split('@').pop()?.toLowerCase();
+    return !domain || !BLOCKED_DOMAINS.includes(domain);
+};
+
 // Signup schema
 const signupSchema = z.object({
     firstName: z.string()
@@ -17,13 +26,8 @@ const signupSchema = z.object({
         .max(50, "Last name cannot exceed 50 characters")
         .regex(/^[a-zA-Z\s]+$/, "Last name can only contain letters and spaces"),
 
-    email: z.string()
-        .trim()
-        .email("Invalid email format")
-        .refine(email => {
-            const domain = email.split('@')[1];
-            return !BLOCKED_DOMAINS.includes(domain.toLowerCase());
-        }, "This email domain is not allowed. Please use a different email address"),
+    email: emailField("Invalid email format")
+        .refine(isAllowedDomain, "This email domain is not allowed. Please use a different email address"),
 
     password: z.string()
         .min(8, "Password must be at least 8 characters long")
@@ -43,7 +47,7 @@ const signinSchema = z.object({
     email: z.string()
         .trim()
         .min(1, "Email is required")
-        .email("Please enter a valid email address"),
+        .pipe(z.email("Please enter a valid email address")),
 
     password: z.string()
         .min(1, "Password is required")
@@ -58,9 +62,7 @@ const refreshTokenSchema = z.object({
 
 // Email verification schema
 const verifyEmailSchema = z.object({
-    email: z.string()
-        .trim()
-        .email("Invalid email format"),
+    email: emailField("Invalid email format"),
 
     code: z.string()
         .trim()
@@ -70,23 +72,17 @@ const verifyEmailSchema = z.object({
 
 // Resend verification schema
 const resendVerificationSchema = z.object({
-    email: z.string()
-        .trim()
-        .email("Invalid email format")
+    email: emailField("Invalid email format")
 });
 
 // Forgot password schema
 const forgotPasswordSchema = z.object({
-    email: z.string()
-        .trim()
-        .email("Invalid email format")
+    email: emailField("Invalid email format")
 });
 
 // Reset password schema
 const resetPasswordSchema = z.object({
-    email: z.string()
-        .trim()
-        .email("Invalid email format"),
+    email: emailField("Invalid email format"),
 
     code: z.string()
         .trim()
@@ -122,7 +118,7 @@ const verify2FASchema = z.object({
 
 // Validate 2FA token schema (for login)
 const validate2FASchema = z.object({
-    email: z.string().trim().email("Invalid email format"),
+    email: emailField("Invalid email format"),
     token: z.string()
         .trim()
         .min(6, "Token must be at least 6 characters")
@@ -141,13 +137,13 @@ const disable2FASchema = z.object({
 });
 
 // Validation middleware
-const validate = (schema: z.ZodSchema) => (req: Request, res: Response, next: NextFunction) => {
+const validate = (schema: z.ZodType) => (req: Request, res: Response, next: NextFunction) => {
     try {
         schema.parse(req.body);
         next();
     } catch (error) {
         if (error instanceof z.ZodError) {
-            const validationErrors = error.errors.map(err => ({
+            const validationErrors = error.issues.map(err => ({
                 field: err.path.join('.'),
                 message: err.message
             }));
