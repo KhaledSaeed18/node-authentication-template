@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from './auth.constants.js';
 
-// Trim first, then check the format (z.email() alone rejects surrounding spaces)
-const emailField = (message: string) => z.string().trim().pipe(z.email(message));
+// Trim and lowercase first, then check the format (z.email() alone rejects surrounding
+// spaces). Lowercasing keeps one account per address regardless of how it's typed.
+const emailField = (message: string) => z.string().trim().toLowerCase().pipe(z.email(message));
 
 // Refinements still run when the email format check fails, so don't assume an "@"
 const isAllowedDomain = (email: string) => {
@@ -45,6 +46,7 @@ export const signinSchema = z.object({
     email: z.string()
         .trim()
         .min(1, "Email is required")
+        .toLowerCase()
         .pipe(z.email("Please enter a valid email address")),
 
     password: z.string()

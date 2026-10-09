@@ -99,6 +99,12 @@ describe('signin and tokens', () => {
         expect(res.body.code).toBe('INVALID_TOKEN');
     });
 
+    it('treats emails case-insensitively', async () => {
+        const { password } = await createVerifiedUser();
+        await signin('Jane@ACME.io', password).expect(200);
+        await signup('JANE@acme.io').expect(409);
+    });
+
     it('trims the email before looking the user up', async () => {
         const { password } = await createVerifiedUser();
         await signin('  jane@acme.io ', password).expect(200);
