@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
+import { createDocsRouter } from './docs/docs.routes.js';
 import { httpLogger } from './lib/logger.js';
 import type { PrismaClient } from './generated/prisma/client.js';
 import { prisma } from './lib/prisma.js';
@@ -41,6 +42,11 @@ export const createApp = (overrides: Partial<AppDependencies> = {}): Express => 
 
     // Probes are mounted before logging so they don't flood the logs
     app.use(createHealthRouter(deps.db, deps.health));
+
+    if (env.API_DOCS_ENABLED ?? env.NODE_ENV !== 'production') {
+        // Mounted before the API-wide helmet config, which is too strict for the docs UI
+        app.use(createDocsRouter());
+    }
 
     app.use(httpLogger);
 

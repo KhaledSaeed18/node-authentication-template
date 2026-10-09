@@ -43,6 +43,8 @@ const envSchema = z.object({
         }),
 
     APP_NAME: z.string().default('Node Auth'),
+    // Interactive API docs at /docs. Defaults to on, except in production.
+    API_DOCS_ENABLED: z.stringbool().optional(),
 
     // Mail: "console" logs emails instead of sending them (handy in development)
     MAIL_TRANSPORT: z.enum(['console', 'smtp', 'gmail']).default('console'),
