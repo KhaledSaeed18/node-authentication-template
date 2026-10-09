@@ -1,5 +1,7 @@
+import type { MailContent } from './mailer.js';
+
 // Verification Email Template
-export const VERIFICATION_EMAIL_TEMPLATE = `
+const VERIFICATION_EMAIL_TEMPLATE = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,7 +50,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
                                     <td align="center" style="padding: 30px 0;">
                                         <div style="display: inline-block; padding: 16px 30px; background-color: #f2f6fc; border-radius: 8px; font-size: 26px; font-weight: bold; font-family: Courier, monospace; letter-spacing: 5px; color: #3b82f6; border: 1px solid #e5e7eb;"
                                             role="textbox" aria-label="Your verification code">
-                                            {verificationCode}
+                                            {code}
                                         </div>
                                     </td>
                                 </tr>
@@ -56,7 +58,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
                                     <td>
                                         <p
                                             style="margin: 0; padding-bottom: 10px; font-size: 15px; color: #6b7280; font-family: Arial, Helvetica, sans-serif;">
-                                            This code will expire in 15 minutes for security reasons.
+                                            This code will expire in {minutes} minutes for security reasons.
                                         </p>
                                     </td>
                                 </tr>
@@ -84,7 +86,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
                                 <tr>
                                     <td>
                                         <p style="margin: 0; font-family: Arial, Helvetica, sans-serif;">
-                                            Best regards,<br>"Name" Team
+                                            Best regards,<br>{appName} Team
                                         </p>
                                     </td>
                                 </tr>
@@ -119,7 +121,7 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
 `;
 
 // Password reset email template
-export const PASSWORD_RESET_EMAIL_TEMPLATE = `
+const PASSWORD_RESET_EMAIL_TEMPLATE = `
 <!DOCTYPE html>
 <html lang="en">
 
@@ -170,7 +172,7 @@ export const PASSWORD_RESET_EMAIL_TEMPLATE = `
                                     <td align="center" style="padding: 30px 0;">
                                         <div style="display: inline-block; padding: 16px 30px; background-color: #f2f6fc; border-radius: 8px; font-size: 26px; font-weight: bold; font-family: Courier, monospace; letter-spacing: 5px; color: #3b82f6; border: 1px solid #e5e7eb;"
                                             role="textbox" aria-label="Your password reset code">
-                                            {resetCode}
+                                            {code}
                                         </div>
                                     </td>
                                 </tr>
@@ -178,7 +180,7 @@ export const PASSWORD_RESET_EMAIL_TEMPLATE = `
                                     <td>
                                         <p
                                             style="margin: 0; padding-bottom: 10px; font-size: 15px; color: #6b7280; font-family: Arial, Helvetica, sans-serif;">
-                                            This code will expire in 15 minutes for security reasons.
+                                            This code will expire in {minutes} minutes for security reasons.
                                         </p>
                                     </td>
                                 </tr>
@@ -207,7 +209,7 @@ export const PASSWORD_RESET_EMAIL_TEMPLATE = `
                                 <tr>
                                     <td>
                                         <p style="margin: 0; font-family: Arial, Helvetica, sans-serif;">
-                                            Best regards,<br>"Name" Team
+                                            Best regards,<br>{appName} Team
                                         </p>
                                     </td>
                                 </tr>
@@ -241,3 +243,52 @@ export const PASSWORD_RESET_EMAIL_TEMPLATE = `
 
 </html>
 `;
+
+const escapeHtml = (value: string) =>
+    value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+// Fills {placeholders}, escaping every value so user input can't inject HTML
+const render = (template: string, values: Record<string, string | number>) =>
+    template.replace(/\{(\w+)\}/g, (match, key: string) => (key in values ? escapeHtml(String(values[key])) : match));
+
+interface CodeEmailParams {
+    appName: string;
+    name: string;
+    code: string;
+    minutes: number;
+}
+
+export const verificationEmail = (params: CodeEmailParams): MailContent => ({
+    subject: `Verify your email for ${params.appName}`,
+    html: render(VERIFICATION_EMAIL_TEMPLATE, { ...params }),
+    text: [
+        `Hello ${params.name},`,
+        '',
+        `Your verification code is: ${params.code}`,
+        `It expires in ${params.minutes} minutes.`,
+        '',
+        "If you didn't create an account, you can ignore this email.",
+        '',
+        `${params.appName} Team`,
+    ].join('\n'),
+});
+
+export const passwordResetEmail = (params: CodeEmailParams): MailContent => ({
+    subject: `Reset your ${params.appName} password`,
+    html: render(PASSWORD_RESET_EMAIL_TEMPLATE, { ...params }),
+    text: [
+        `Hello ${params.name},`,
+        '',
+        `Your password reset code is: ${params.code}`,
+        `It expires in ${params.minutes} minutes.`,
+        '',
+        "If you didn't request a password reset, you can ignore this email.",
+        '',
+        `${params.appName} Team`,
+    ].join('\n'),
+});

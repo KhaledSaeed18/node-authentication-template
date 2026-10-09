@@ -2,7 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import type { PrismaClient, User } from '../../generated/prisma/client.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../../mail/email.js';
+import type { Mailer } from '../../mail/mailer.js';
+import { passwordResetEmail, verificationEmail } from '../../mail/templates.js';
 import {
     BadRequestError,
     ConflictError,
@@ -21,7 +22,7 @@ import type {
 import { generateAccessToken, generateRefreshToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, verifyTOTP } from './totp.js';
 
-const CODE_TTL_MS = 15 * 60 * 1000;
+const CODE_TTL_MINUTES = 15;
 
 // Where a request came from, recorded in the login history
 export interface RequestContext {
@@ -58,10 +59,17 @@ const notVerified = () =>
 const userNotFound = () => new NotFoundError('User not found', 'USER_NOT_FOUND');
 
 export class AuthService {
-    constructor(private readonly db: PrismaClient) {}
+    constructor(
+        private readonly db: PrismaClient,
+        private readonly mailer: Mailer
+    ) {}
 
     private codeExpiry(): Date {
-        return new Date(Date.now() + CODE_TTL_MS);
+        return new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
+    }
+
+    private async sendVerificationCode(email: string, name: string, code: string) {
+        await this.mailer.send(email, verificationEmail({ appName: env.APP_NAME, name, code, minutes: CODE_TTL_MINUTES }));
     }
 
     private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
@@ -99,7 +107,7 @@ export class AuthService {
         const hashedPassword = await bcrypt.hash(password, env.SALT_ROUNDS);
         const verificationCode = generateOTP();
 
-        await sendVerificationEmail(email, verificationCode, firstName);
+        await this.sendVerificationCode(email, firstName, verificationCode);
 
         const user = await this.db.user.create({
             data: {
@@ -188,7 +196,7 @@ export class AuthService {
             data: { verificationCode, codeExpiry: this.codeExpiry() },
         });
 
-        await sendVerificationEmail(email, verificationCode, user.firstName);
+        await this.sendVerificationCode(email, user.firstName, verificationCode);
     }
 
     async forgotPassword(email: string): Promise<void> {
@@ -201,7 +209,10 @@ export class AuthService {
             data: { resetPasswordCode, resetPasswordExpiry: this.codeExpiry() },
         });
 
-        await sendPasswordResetEmail(email, resetPasswordCode, user.firstName);
+        await this.mailer.send(
+            email,
+            passwordResetEmail({ appName: env.APP_NAME, name: user.firstName, code: resetPasswordCode, minutes: CODE_TTL_MINUTES })
+        );
     }
 
     async resetPassword({ email, code, newPassword }: ResetPasswordInput): Promise<void> {

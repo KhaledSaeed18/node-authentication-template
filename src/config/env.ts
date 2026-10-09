@@ -32,10 +32,31 @@ const envSchema = z.object({
             return value;
         }),
 
-    USER_EMAIL: z.string().optional(),
-    CLIENT_ID: z.string().optional(),
-    CLIENT_SECRET: z.string().optional(),
-    REFRESH_TOKEN: z.string().optional(),
+    APP_NAME: z.string().default('Node Auth'),
+
+    // Mail: "console" logs emails instead of sending them (handy in development)
+    MAIL_TRANSPORT: z.enum(['console', 'smtp', 'gmail']).default('console'),
+    MAIL_FROM: z.string().default('Node Auth <no-reply@example.com>'),
+
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().default(587),
+    SMTP_SECURE: z.stringbool().default(false),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+
+    GMAIL_USER: z.string().optional(),
+    GMAIL_CLIENT_ID: z.string().optional(),
+    GMAIL_CLIENT_SECRET: z.string().optional(),
+    GMAIL_REFRESH_TOKEN: z.string().optional(),
+}).superRefine((value, ctx) => {
+    const requireFor = (transport: string, keys: (keyof typeof value)[]) => {
+        if (value.MAIL_TRANSPORT !== transport) return;
+        for (const key of keys) {
+            if (!value[key]) ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required when MAIL_TRANSPORT=${transport}` });
+        }
+    };
+    requireFor('smtp', ['SMTP_HOST']);
+    requireFor('gmail', ['GMAIL_USER', 'GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN']);
 });
 
 export type Env = z.infer<typeof envSchema>;

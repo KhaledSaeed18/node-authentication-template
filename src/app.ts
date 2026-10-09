@@ -3,11 +3,25 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { httpLogger } from './lib/logger.js';
-import { authRouter } from './modules/auth/index.js';
+import type { PrismaClient } from './generated/prisma/client.js';
+import { prisma } from './lib/prisma.js';
+import { createMailer, type Mailer } from './mail/mailer.js';
+import { createAuthModule } from './modules/auth/index.js';
 import { errorHandler, notFoundHandler } from './shared/middlewares/error-handler.js';
 
-// Builds the Express app without starting a server, so tests can use it directly
-export const createApp = (): Express => {
+export interface AppDependencies {
+    db: PrismaClient;
+    mailer: Mailer;
+}
+
+// Builds the Express app without starting a server. Dependencies can be
+// overridden, e.g. tests pass an in-memory mailer.
+export const createApp = (overrides: Partial<AppDependencies> = {}): Express => {
+    const deps: AppDependencies = {
+        db: overrides.db ?? prisma,
+        mailer: overrides.mailer ?? createMailer(env),
+    };
+
     const app = express();
 
     app.disable('x-powered-by');
@@ -37,7 +51,7 @@ export const createApp = (): Express => {
 
     const baseUrl = `${env.BASE_URL}/${env.API_VERSION}`;
 
-    app.use(`${baseUrl}/auth`, authRouter);
+    app.use(`${baseUrl}/auth`, createAuthModule(deps).router);
 
     app.use(notFoundHandler);
     app.use(errorHandler);

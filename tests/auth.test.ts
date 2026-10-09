@@ -1,23 +1,13 @@
 import { generateSync } from 'otplib';
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../src/mail/email.js';
-import { API, resetDatabase, strongPassword } from './helpers.js';
+import { API, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
 
-vi.mock('../src/mail/email.js', () => ({
-    sendVerificationEmail: vi.fn(),
-    sendPasswordResetEmail: vi.fn(),
-}));
-
-const app = createApp();
+const mailer = new InMemoryMailer();
+const app = createApp({ mailer });
 const auth = `${API}/auth`;
-
-const lastCodeSentBy = (mailer: typeof sendVerificationEmail) => {
-    const calls = vi.mocked(mailer).mock.calls;
-    return calls[calls.length - 1][1];
-};
 
 const signup = (email = 'jane@acme.io', password = strongPassword) =>
     request(app).post(`${auth}/signup`).send({ firstName: 'Jane', lastName: 'Doe', email, password });
@@ -27,7 +17,7 @@ const createVerifiedUser = async (email = 'jane@acme.io', password = strongPassw
     await signup(email, password).expect(201);
     await request(app)
         .post(`${auth}/verify-email`)
-        .send({ email, code: lastCodeSentBy(sendVerificationEmail) })
+        .send({ email, code: mailer.lastCode(email, 'Verify') })
         .expect(200);
     return { email, password };
 };
@@ -36,7 +26,7 @@ const signin = (email: string, password: string) =>
     request(app).post(`${auth}/signin`).send({ email, password });
 
 beforeEach(async () => {
-    vi.clearAllMocks();
+    mailer.clear();
     await resetDatabase();
 });
 
@@ -50,7 +40,7 @@ describe('signup and email verification', () => {
 
         expect(res.body.data.user).toMatchObject({ email: 'jane@acme.io', isVerified: false });
         expect(res.body.data.user.password).toBeUndefined();
-        expect(lastCodeSentBy(sendVerificationEmail)).toMatch(/^\d{6}$/);
+        expect(mailer.lastCode('jane@acme.io', 'Verify')).toMatch(/^\d{6}$/);
     });
 
     it('rejects a duplicate email', async () => {
@@ -74,7 +64,7 @@ describe('signup and email verification', () => {
 
     it('rejects a wrong verification code', async () => {
         await signup().expect(201);
-        const code = lastCodeSentBy(sendVerificationEmail) === '000000' ? '111111' : '000000';
+        const code = mailer.lastCode('jane@acme.io') === '000000' ? '111111' : '000000';
         await request(app).post(`${auth}/verify-email`).send({ email: 'jane@acme.io', code }).expect(400);
     });
 });
@@ -143,7 +133,7 @@ describe('password reset', () => {
     it('resets the password with the emailed code', async () => {
         const { email, password } = await createVerifiedUser();
         await request(app).post(`${auth}/forgot-password`).send({ email }).expect(200);
-        const code = lastCodeSentBy(sendPasswordResetEmail);
+        const code = mailer.lastCode(email, 'Reset');
 
         const newPassword = 'An0ther$ecretPass';
         await request(app).post(`${auth}/reset-password`).send({ email, code, newPassword }).expect(200);
