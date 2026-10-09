@@ -1,64 +1,51 @@
-import express, { type Express, type Request, type Response } from 'express';
-import cors from "cors";
-import helmet from 'helmet';
-import { ErrorMiddleware } from './shared/middlewares/error-handler.js';
-import AuthRouter from './modules/auth/auth.routes.js';
+import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { httpLogger, logger } from './lib/logger.js';
+import { logger } from './lib/logger.js';
+import { prisma } from './lib/prisma.js';
 
-const app: Express = express();
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-app.disable('x-powered-by');
-app.set('trust proxy', env.TRUST_PROXY);
+const app = createApp();
 
-// CORS middleware
-app.use(
-    cors({
-        origin: env.CORS_ORIGINS,
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allowedHeaders: ["Content-Type", "Authorization"],
-    })
-);
-
-// Request logging
-app.use(httpLogger);
-
-// Security headers, locked down further since this API only serves JSON
-app.use(
-    helmet({
-        contentSecurityPolicy: {
-            directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
-        },
-        frameguard: { action: 'deny' },
-    })
-);
-
-// Body parser middleware
-app.use(express.json({ limit: '10kb' }));
-
-const port = env.PORT;
-const baseUrl = `${env.BASE_URL}/${env.API_VERSION}`;
-
-// Authentication routes
-const authRouter = new AuthRouter();
-app.use(`${baseUrl}/auth`, authRouter.getRouter());
-
-// 404 error handler
-app.use((_req: Request, res: Response) => {
-    res.status(404).json({
-        status: "fail",
-        statusCode: 404,
-        message: "Resource not found"
-    });
-});
-
-// Error handling middleware
-app.use(ErrorMiddleware.handleError);
-
-app.listen(port, (error) => {
+const server = app.listen(env.PORT, (error) => {
     if (error) {
         logger.fatal({ err: error }, 'Failed to start server');
         process.exit(1);
     }
-    logger.info(`Server is running on: http://localhost:${port}`);
+    logger.info(`Server is running on: http://localhost:${env.PORT}`);
+});
+
+let shuttingDown = false;
+
+// Stop accepting connections, let in-flight requests finish, then close the DB pool
+const shutdown = (signal: NodeJS.Signals) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ signal }, 'Shutting down');
+
+    const forceExit = setTimeout(() => {
+        logger.error('Graceful shutdown timed out, forcing exit');
+        process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS);
+    forceExit.unref();
+
+    server.close(async (error) => {
+        if (error) logger.error({ err: error }, 'Error while closing the HTTP server');
+        await prisma.$disconnect();
+        logger.info('Shutdown complete');
+        process.exit(error ? 1 : 0);
+    });
+    server.closeIdleConnections();
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+process.on('unhandledRejection', (reason) => {
+    logger.error({ err: reason }, 'Unhandled promise rejection');
+});
+
+process.on('uncaughtException', (error) => {
+    logger.fatal({ err: error }, 'Uncaught exception');
+    process.exit(1);
 });
