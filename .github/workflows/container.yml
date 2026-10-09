@@ -35,6 +35,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v4
+        with:
+          # BuildKit from Docker's AWS mirror; Docker Hub rate limits and times out on shared runners
+          driver-opts: image=public.ecr.aws/vend/moby/buildkit:buildx-stable-1
 
       - name: Build the runtime image
         uses: docker/build-push-action@v7
