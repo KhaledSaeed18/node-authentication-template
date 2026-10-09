@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { httpLogger } from './lib/logger.js';
-import AuthRouter from './modules/auth/auth.routes.js';
+import { authRouter } from './modules/auth/index.js';
 import { errorHandler, notFoundHandler } from './shared/middlewares/error-handler.js';
 
 // Builds the Express app without starting a server, so tests can use it directly
@@ -37,7 +37,7 @@ export const createApp = (): Express => {
 
     const baseUrl = `${env.BASE_URL}/${env.API_VERSION}`;
 
-    app.use(`${baseUrl}/auth`, new AuthRouter().getRouter());
+    app.use(`${baseUrl}/auth`, authRouter);
 
     app.use(notFoundHandler);
     app.use(errorHandler);

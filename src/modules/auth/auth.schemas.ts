@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import type { Request, Response, NextFunction } from 'express';
-import { ValidationError } from '../../shared/errors/app-error.js';
 import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from './auth.constants.js';
 
 // Trim first, then check the format (z.email() alone rejects surrounding spaces)
@@ -13,7 +11,7 @@ const isAllowedDomain = (email: string) => {
 };
 
 // Signup schema
-const signupSchema = z.object({
+export const signupSchema = z.object({
     firstName: z.string()
         .trim()
         .min(1, "First name is required")
@@ -43,7 +41,7 @@ const signupSchema = z.object({
 });
 
 // Signin schema
-const signinSchema = z.object({
+export const signinSchema = z.object({
     email: z.string()
         .trim()
         .min(1, "Email is required")
@@ -55,13 +53,13 @@ const signinSchema = z.object({
 });
 
 // Refresh token schema
-const refreshTokenSchema = z.object({
+export const refreshTokenSchema = z.object({
     refreshToken: z.string()
         .min(1, "Refresh token is required")
 });
 
 // Email verification schema
-const verifyEmailSchema = z.object({
+export const verifyEmailSchema = z.object({
     email: emailField("Invalid email format"),
 
     code: z.string()
@@ -71,17 +69,17 @@ const verifyEmailSchema = z.object({
 });
 
 // Resend verification schema
-const resendVerificationSchema = z.object({
+export const resendVerificationSchema = z.object({
     email: emailField("Invalid email format")
 });
 
 // Forgot password schema
-const forgotPasswordSchema = z.object({
+export const forgotPasswordSchema = z.object({
     email: emailField("Invalid email format")
 });
 
 // Reset password schema
-const resetPasswordSchema = z.object({
+export const resetPasswordSchema = z.object({
     email: emailField("Invalid email format"),
 
     code: z.string()
@@ -102,13 +100,8 @@ const resetPasswordSchema = z.object({
         )
 });
 
-// Setup 2FA schema
-const setup2FASchema = z.object({
-    userId: z.string().trim().min(1, "User ID is required"),
-});
-
 // Verify & Enable 2FA schema
-const verify2FASchema = z.object({
+export const verify2FASchema = z.object({
     token: z.string()
         .trim()
         .min(6, "Token must be at least 6 characters")
@@ -117,7 +110,7 @@ const verify2FASchema = z.object({
 });
 
 // Validate 2FA token schema (for login)
-const validate2FASchema = z.object({
+export const signin2FASchema = z.object({
     email: emailField("Invalid email format"),
     token: z.string()
         .trim()
@@ -128,7 +121,7 @@ const validate2FASchema = z.object({
 });
 
 // Disable 2FA schema
-const disable2FASchema = z.object({
+export const disable2FASchema = z.object({
     token: z.string()
         .trim()
         .min(6, "Token must be at least 6 characters")
@@ -136,31 +129,13 @@ const disable2FASchema = z.object({
         .regex(/^\d+$/, "Token must contain only digits"),
 });
 
-// Validation middleware, replaces req.body with the parsed (trimmed, stripped) data
-const validate = (schema: z.ZodType) => (req: Request, _res: Response, next: NextFunction) => {
-    const result = schema.safeParse(req.body);
-
-    if (!result.success) {
-        const validationErrors = result.error.issues.map(issue => ({
-            field: issue.path.join('.'),
-            message: issue.message
-        }));
-
-        return next(new ValidationError(validationErrors));
-    }
-
-    req.body = result.data;
-    next();
-};
-
-export const validateSignup = validate(signupSchema);
-export const validateSignin = validate(signinSchema);
-export const validateRefreshToken = validate(refreshTokenSchema);
-export const validateVerifyEmail = validate(verifyEmailSchema);
-export const validateResendVerification = validate(resendVerificationSchema);
-export const validateForgotPassword = validate(forgotPasswordSchema);
-export const validateResetPassword = validate(resetPasswordSchema);
-export const validateSetup2FA = validate(setup2FASchema);
-export const validateVerify2FA = validate(verify2FASchema);
-export const validateLogin2FA = validate(validate2FASchema);
-export const validateDisable2FA = validate(disable2FASchema);
+export type SignupInput = z.infer<typeof signupSchema>;
+export type SigninInput = z.infer<typeof signinSchema>;
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type Verify2FAInput = z.infer<typeof verify2FASchema>;
+export type Signin2FAInput = z.infer<typeof signin2FASchema>;
+export type Disable2FAInput = z.infer<typeof disable2FASchema>;

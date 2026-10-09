@@ -1,131 +1,59 @@
-import { Router } from "express";
-import AuthController from "./auth.controller.js";
-import { loginHistoryLimiter, refreshTokenLimiter, signinLimiter, signupLimiter, verifyEmailLimiter, resendVerificationLimiter, forgotPasswordLimiter, resetPasswordLimiter, setup2FALimiter, verify2FALimiter, signin2FALimiter, disable2FALimiter } from "./auth.rate-limits.js";
-import { validateDisable2FA, validateForgotPassword, validateLogin2FA, validateRefreshToken, validateResendVerification, validateResetPassword, validateSignin, validateSignup, validateVerify2FA, validateVerifyEmail } from "./auth.validation.js";
-import { authorize } from "../../shared/middlewares/authenticate.js";
+import { Router } from 'express';
+import { authenticate } from '../../shared/middlewares/authenticate.js';
 import { sanitizeRequestBody } from '../../shared/middlewares/sanitize-body.js';
+import { validate } from '../../shared/middlewares/validate.js';
+import type { AuthController } from './auth.controller.js';
+import {
+    disable2FALimiter,
+    forgotPasswordLimiter,
+    loginHistoryLimiter,
+    refreshTokenLimiter,
+    resendVerificationLimiter,
+    resetPasswordLimiter,
+    setup2FALimiter,
+    signin2FALimiter,
+    signinLimiter,
+    signupLimiter,
+    verify2FALimiter,
+    verifyEmailLimiter,
+} from './auth.rate-limits.js';
+import {
+    disable2FASchema,
+    forgotPasswordSchema,
+    refreshTokenSchema,
+    resendVerificationSchema,
+    resetPasswordSchema,
+    signin2FASchema,
+    signinSchema,
+    signupSchema,
+    verify2FASchema,
+    verifyEmailSchema,
+} from './auth.schemas.js';
 
-export default class AuthRouter {
-  private router: Router;
-  private authController: AuthController;
+export const createAuthRouter = (controller: AuthController): Router => {
+    const router = Router();
 
-  constructor() {
-    this.router = Router();
-    this.authController = new AuthController();
-    this.initRoutes();
-  }
+    router.post('/signup', signupLimiter, sanitizeRequestBody, validate(signupSchema), controller.signup);
+    router.post('/signin', signinLimiter, sanitizeRequestBody, validate(signinSchema), controller.signin);
+    router.post('/refresh-token', refreshTokenLimiter, validate(refreshTokenSchema), controller.refreshAccessToken);
+    router.get('/login-history', loginHistoryLimiter, authenticate, controller.getLoginHistory);
 
-  private initRoutes(): void {
-    // Signup route
-    this.router.post(
-      "/signup",
-      signupLimiter,
-      sanitizeRequestBody,
-      validateSignup,
-      this.authController.signup
+    router.post('/verify-email', verifyEmailLimiter, sanitizeRequestBody, validate(verifyEmailSchema), controller.verifyEmail);
+    router.post(
+        '/resend-verification',
+        resendVerificationLimiter,
+        sanitizeRequestBody,
+        validate(resendVerificationSchema),
+        controller.resendVerificationCode
     );
 
-    // Signin route
-    this.router.post(
-      "/signin",
-      signinLimiter,
-      sanitizeRequestBody,
-      validateSignin,
-      this.authController.signin
-    );
+    router.post('/forgot-password', forgotPasswordLimiter, sanitizeRequestBody, validate(forgotPasswordSchema), controller.forgotPassword);
+    router.post('/reset-password', resetPasswordLimiter, sanitizeRequestBody, validate(resetPasswordSchema), controller.resetPassword);
 
-    // Get user login history route
-    this.router.get(
-      "/login-history",
-      loginHistoryLimiter,
-      authorize,
-      this.authController.getLoginHistory
-    );
+    router.post('/2fa/setup', authenticate, setup2FALimiter, controller.setup2FA);
+    router.post('/2fa/verify', authenticate, verify2FALimiter, sanitizeRequestBody, validate(verify2FASchema), controller.verify2FA);
+    router.post('/2fa/signin', signin2FALimiter, sanitizeRequestBody, validate(signin2FASchema), controller.signin2FA);
+    router.post('/2fa/disable', authenticate, disable2FALimiter, sanitizeRequestBody, validate(disable2FASchema), controller.disable2FA);
 
-    // Refresh token route
-    this.router.post(
-      "/refresh-token",
-      refreshTokenLimiter,
-      validateRefreshToken,
-      this.authController.refreshAccessToken
-    );
-
-    // Email verification route
-    this.router.post(
-      "/verify-email",
-      verifyEmailLimiter,
-      sanitizeRequestBody,
-      validateVerifyEmail,
-      this.authController.verifyEmail
-    );
-
-    // Resend verification code route
-    this.router.post(
-      "/resend-verification",
-      resendVerificationLimiter,
-      sanitizeRequestBody,
-      validateResendVerification,
-      this.authController.resendVerificationCode
-    );
-
-    // Forgot password route
-    this.router.post(
-      "/forgot-password",
-      forgotPasswordLimiter,
-      sanitizeRequestBody,
-      validateForgotPassword,
-      this.authController.forgotPassword
-    );
-
-    // Reset password route
-    this.router.post(
-      "/reset-password",
-      resetPasswordLimiter,
-      sanitizeRequestBody,
-      validateResetPassword,
-      this.authController.resetPassword
-    );
-
-    // Setup 2FA (get QR code)
-    this.router.post(
-      "/2fa/setup",
-      authorize,
-      setup2FALimiter,
-      this.authController.setup2FA
-    );
-
-    // Verify and enable 2FA
-    this.router.post(
-      "/2fa/verify",
-      authorize,
-      verify2FALimiter,
-      sanitizeRequestBody,
-      validateVerify2FA,
-      this.authController.verify2FA
-    );
-
-    // 2FA login (second step)
-    this.router.post(
-      "/2fa/signin",
-      signin2FALimiter,
-      sanitizeRequestBody,
-      validateLogin2FA,
-      this.authController.signin2FA
-    );
-
-    // Disable 2FA
-    this.router.post(
-      "/2fa/disable",
-      authorize,
-      disable2FALimiter,
-      sanitizeRequestBody,
-      validateDisable2FA,
-      this.authController.disable2FA
-    );
-  }
-
-  // Returns the router object
-  public getRouter(): Router {
-    return this.router;
-  }
-}
+    return router;
+};

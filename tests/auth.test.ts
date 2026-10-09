@@ -104,6 +104,11 @@ describe('signin and tokens', () => {
         expect(res.body.data.accessToken).toEqual(expect.any(String));
     });
 
+    it('rejects an invalid refresh token with 401', async () => {
+        const res = await request(app).post(`${auth}/refresh-token`).send({ refreshToken: 'not.a.jwt' }).expect(401);
+        expect(res.body.code).toBe('INVALID_TOKEN');
+    });
+
     it('trims the email before looking the user up', async () => {
         const { password } = await createVerifiedUser();
         await signin('  jane@acme.io ', password).expect(200);
@@ -112,8 +117,8 @@ describe('signin and tokens', () => {
 
 describe('login history', () => {
     it('requires authentication', async () => {
-        const res = await request(app).get(`${auth}/login-history`);
-        expect([401, 403]).toContain(res.status);
+        const res = await request(app).get(`${auth}/login-history`).expect(401);
+        expect(res.body.code).toBe('MISSING_TOKEN');
     });
 
     it('only returns the signed-in user\'s own attempts', async () => {

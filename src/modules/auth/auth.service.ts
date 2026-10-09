@@ -1,570 +1,301 @@
-import { prisma } from "../../lib/prisma.js";
-import bcrypt from "bcryptjs";
-import { generateAccessToken, generateRefreshToken } from "./tokens.js";
-import type { Request } from "express";
-import jwt from "jsonwebtoken";
-import { generateOTP } from "../../shared/utils/otp.js";
-import { sendPasswordResetEmail, sendVerificationEmail } from "../../mail/email.js";
-import { generateQRCode, generateTOTPSecret, verifyTOTP } from "./totp.js";
-import { env } from "../../config/env.js";
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { env } from '../../config/env.js';
+import type { PrismaClient, User } from '../../generated/prisma/client.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../../mail/email.js';
+import {
+    BadRequestError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnauthorizedError,
+} from '../../shared/errors/app-error.js';
+import { generateOTP } from '../../shared/utils/otp.js';
+import type {
+    ResetPasswordInput,
+    Signin2FAInput,
+    SigninInput,
+    SignupInput,
+    VerifyEmailInput,
+} from './auth.schemas.js';
+import { generateAccessToken, generateRefreshToken } from './tokens.js';
+import { generateQRCode, generateTOTPSecret, verifyTOTP } from './totp.js';
 
-export class AuthService {
-  private prisma = prisma;
-  private saltRounds = env.SALT_ROUNDS;
+const CODE_TTL_MS = 15 * 60 * 1000;
 
-  // Helper method to generate code expiry
-  private generateCodeExpiry(): Date {
-    return new Date(Date.now() + 15 * 60 * 1000);
-  }
-
-  // Helper method to extract device info from request
-  private extractDeviceInfo(req: Request): {
+// Where a request came from, recorded in the login history
+export interface RequestContext {
     ipAddress: string | null;
     userAgent: string | null;
-    device: string | null;
-    location: string | null;
-  } {
-    // Client IP, resolved by Express according to the "trust proxy" setting
-    const ipAddress = req.ip ?? null;
+}
 
-    // Get user agent (Device info)
-    const userAgent = req.headers['user-agent'] || null;
+export type PublicUser = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role' | 'isVerified' | 'totpEnabled'>;
 
-    // Device type detection
-    let device = 'Unknown';
-    if (userAgent) {
-      if (/Mobile|Android|iPhone|iPad|iPod/i.test(userAgent)) {
-        device = 'Mobile';
-      } else if (/Tablet|iPad/i.test(userAgent)) {
-        device = 'Tablet';
-      } else {
-        device = 'Desktop';
-      }
+export type SigninResult =
+    | { requiresOtp: true; user: Pick<User, 'id' | 'email' | 'firstName' | 'lastName'> }
+    | { requiresOtp: false; user: PublicUser; accessToken: string; refreshToken: string };
+
+export const toPublicUser = (user: User): PublicUser => ({
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: user.role,
+    isVerified: user.isVerified,
+    totpEnabled: user.totpEnabled,
+});
+
+const detectDevice = (userAgent: string | null): string => {
+    if (!userAgent) return 'Unknown';
+    if (/Mobile|Android|iPhone|iPad|iPod/i.test(userAgent)) return 'Mobile';
+    if (/Tablet|iPad/i.test(userAgent)) return 'Tablet';
+    return 'Desktop';
+};
+
+const invalidCredentials = () => new UnauthorizedError('Invalid email or password', 'INVALID_CREDENTIALS');
+const notVerified = () =>
+    new ForbiddenError('Account not verified. Please verify your email address.', 'EMAIL_NOT_VERIFIED');
+const userNotFound = () => new NotFoundError('User not found', 'USER_NOT_FOUND');
+
+export class AuthService {
+    constructor(private readonly db: PrismaClient) {}
+
+    private codeExpiry(): Date {
+        return new Date(Date.now() + CODE_TTL_MS);
     }
 
-    // TODO: Implement location detection (get location from IP address)
-    const location = null;
-
-    return { ipAddress, userAgent, device, location };
-  }
-
-  // Function to record login attempt
-  private async recordLoginAttempt(userId: string, req: Request, successful: boolean) {
-    const { ipAddress, userAgent, device, location } = this.extractDeviceInfo(req);
-
-    await this.prisma.loginHistory.create({
-      data: {
-        userId,
-        ipAddress,
-        userAgent,
-        device,
-        location,
-        successful,
-        loginTime: new Date()
-      }
-    });
-  }
-
-  // Signup method
-  public async signup(firstName: string, lastName: string, email: string, password: string) {
-    const existingUser = await this.prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      throw new Error("User with this email already exists");
+    private async recordLoginAttempt(userId: string, context: RequestContext, successful: boolean) {
+        await this.db.loginHistory.create({
+            data: {
+                userId,
+                ipAddress: context.ipAddress,
+                userAgent: context.userAgent,
+                device: detectDevice(context.userAgent),
+                location: null,
+                successful,
+            },
+        });
     }
 
-    const hashedPassword = await bcrypt.hash(password, this.saltRounds);
-
-    // Generate OTP and set expiry time
-    const verificationCode = generateOTP();
-    const codeExpiry = this.generateCodeExpiry();
-
-    try {
-      await sendVerificationEmail(
-        email,
-        verificationCode,
-        firstName
-      );
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`Error sending verification email: ${errorMessage}`, { cause: error });
+    private issueTokens(user: User) {
+        return {
+            accessToken: generateAccessToken(user.id, user.role),
+            refreshToken: generateRefreshToken(user.id, user.role),
+        };
     }
 
-    const newUser = await this.prisma.user.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-        verificationCode,
-        codeExpiry,
-        isVerified: false
-      },
-    });
-
-    return {
-      status: "success",
-      statusCode: 201,
-      message: "User registered successfully",
-      data: {
-        user: {
-          id: newUser.id,
-          firstName,
-          lastName,
-          email,
-          role: newUser.role,
-          isVerified: newUser.isVerified
-        },
-      },
-    };
-  }
-
-  // Signin method with login history
-  public async signin(email: string, password: string, req: Request) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      const existingEmail = await this.prisma.user.findFirst({
-        where: { email },
-        select: { id: true }
-      });
-
-      if (existingEmail) {
-        await this.recordLoginAttempt(existingEmail.id, req, false);
-      }
-
-      throw new Error("Invalid email or password");
+    private async findUserById(userId: string): Promise<User> {
+        const user = await this.db.user.findUnique({ where: { id: userId } });
+        if (!user) throw userNotFound();
+        return user;
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      await this.recordLoginAttempt(user.id, req, false);
-      throw new Error("Invalid email or password");
-    }
-
-    // Check if user is verified
-    if (!user.isVerified) {
-      throw new Error("Account not verified. Please verify your email address.");
-    }
-
-    // Check if 2FA is enabled
-    if (user.totpEnabled) {
-      // Return a special response indicating 2FA is required
-      return {
-        status: "pending",
-        statusCode: 200,
-        message: "2FA verification required",
-        data: {
-          requiresOtp: true,
-          user: {
-            id: user.id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName
-          }
+    async signup({ firstName, lastName, email, password }: SignupInput): Promise<PublicUser> {
+        const existingUser = await this.db.user.findUnique({ where: { email } });
+        if (existingUser) {
+            throw new ConflictError('User with this email already exists', 'EMAIL_TAKEN');
         }
-      };
+
+        const hashedPassword = await bcrypt.hash(password, env.SALT_ROUNDS);
+        const verificationCode = generateOTP();
+
+        await sendVerificationEmail(email, verificationCode, firstName);
+
+        const user = await this.db.user.create({
+            data: {
+                firstName,
+                lastName,
+                email,
+                password: hashedPassword,
+                verificationCode,
+                codeExpiry: this.codeExpiry(),
+            },
+        });
+
+        return toPublicUser(user);
     }
 
-    // Regular flow for users without 2FA
-    await this.recordLoginAttempt(user.id, req, true);
+    async signin({ email, password }: SigninInput, context: RequestContext): Promise<SigninResult> {
+        const user = await this.db.user.findUnique({ where: { email } });
+        if (!user) throw invalidCredentials();
 
-    const accessToken = generateAccessToken(user.id, user.role);
-    const refreshToken = generateRefreshToken(user.id, user.role);
-
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "User signed in successfully",
-      data: {
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          role: user.role,
-          isVerified: user.isVerified,
-          totpEnabled: user.totpEnabled
-        },
-        accessToken,
-        refreshToken,
-      },
-    };
-  }
-
-  // Get login history for a user
-  public async getLoginHistory(userId: string) {
-    const loginHistory = await this.prisma.loginHistory.findMany({
-      where: { userId: userId },
-      orderBy: { loginTime: 'desc' },
-    });
-
-    return loginHistory;
-  }
-
-  // Refresh access token method
-  public async refreshAccessToken(refreshToken: string) {
-    try {
-      const decoded = jwt.verify(
-        refreshToken,
-        env.JWT_REFRESH_SECRET
-      ) as jwt.JwtPayload;
-
-      const newAccessToken = generateAccessToken(decoded.userId, decoded.role);
-
-      return newAccessToken;
-    } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) {
-        throw new Error("Refresh token expired", { cause: error });
-      }
-      throw new Error("Error refreshing access token", { cause: error });
-    }
-  }
-
-  // Verify email with OTP
-  public async verifyEmail(email: string, code: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    if (user.isVerified) {
-      throw new Error("Email already verified");
-    }
-
-    if (!user.verificationCode || !user.codeExpiry) {
-      throw new Error("Verification code not found or expired");
-    }
-
-    if (user.verificationCode !== code) {
-      throw new Error("Invalid verification code");
-    }
-
-    if (new Date() > user.codeExpiry) {
-      throw new Error("Verification code has expired");
-    }
-
-    // Update user verification status (make isVerified = true)
-    const verifiedUser = await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        isVerified: true,
-        verificationCode: null,
-        codeExpiry: null
-      }
-    });
-
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "Email verified successfully",
-      data: {
-        user: {
-          id: verifiedUser.id,
-          firstName: verifiedUser.firstName,
-          lastName: verifiedUser.lastName,
-          email: verifiedUser.email,
-          isVerified: verifiedUser.isVerified
+        if (!(await bcrypt.compare(password, user.password))) {
+            await this.recordLoginAttempt(user.id, context, false);
+            throw invalidCredentials();
         }
-      }
-    };
-  }
 
-  // Resend verification code
-  public async resendVerificationCode(email: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email }
-    });
+        if (!user.isVerified) throw notVerified();
 
-    if (!user) {
-      throw new Error("User not found");
+        if (user.totpEnabled) {
+            return {
+                requiresOtp: true,
+                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+            };
+        }
+
+        await this.recordLoginAttempt(user.id, context, true);
+
+        return { requiresOtp: false, user: toPublicUser(user), ...this.issueTokens(user) };
     }
 
-    if (user.isVerified) {
-      throw new Error("Email already verified");
+    async getLoginHistory(userId: string) {
+        return this.db.loginHistory.findMany({
+            where: { userId },
+            orderBy: { loginTime: 'desc' },
+        });
     }
 
-    // Generate OTP and set expiry time
-    const verificationCode = generateOTP();
-    const codeExpiry = this.generateCodeExpiry();
-
-    // Update user with new verification code
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        verificationCode,
-        codeExpiry
-      }
-    });
-
-    // Send verification email
-    await sendVerificationEmail(
-      email,
-      verificationCode,
-      user.firstName
-    );
-
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "Verification code resent successfully"
-    };
-  }
-
-  // Forgot password method
-  public async forgotPassword(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new Error("User not found");
+    refreshAccessToken(refreshToken: string): string {
+        try {
+            const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as jwt.JwtPayload;
+            return generateAccessToken(decoded.userId, decoded.role);
+        } catch (error) {
+            if (error instanceof jwt.TokenExpiredError) {
+                throw new UnauthorizedError('Refresh token expired', 'TOKEN_EXPIRED');
+            }
+            throw new UnauthorizedError('Invalid refresh token', 'INVALID_TOKEN');
+        }
     }
 
-    // Generate reset token and set expiry time
-    const resetPasswordCode = generateOTP();
-    const resetPasswordExpiry = this.generateCodeExpiry();
+    async verifyEmail({ email, code }: VerifyEmailInput): Promise<PublicUser> {
+        const user = await this.db.user.findUnique({ where: { email } });
+        if (!user) throw userNotFound();
+        if (user.isVerified) throw new BadRequestError('Email already verified', 'EMAIL_ALREADY_VERIFIED');
 
-    // Update user with reset token
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        resetPasswordCode,
-        resetPasswordExpiry
-      }
-    });
+        if (!user.verificationCode || !user.codeExpiry || user.verificationCode !== code) {
+            throw new BadRequestError('Invalid verification code', 'INVALID_CODE');
+        }
+        if (new Date() > user.codeExpiry) {
+            throw new BadRequestError('Verification code has expired', 'CODE_EXPIRED');
+        }
 
-    // Send password reset email
-    await sendPasswordResetEmail(
-      email,
-      resetPasswordCode,
-      user.firstName
-    );
+        const verifiedUser = await this.db.user.update({
+            where: { id: user.id },
+            data: { isVerified: true, verificationCode: null, codeExpiry: null },
+        });
 
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "Password reset instructions sent to your email"
-    };
-  }
-
-  // Reset password method
-  public async resetPassword(email: string, code: string, newPassword: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new Error("User not found");
+        return toPublicUser(verifiedUser);
     }
 
-    if (!user.resetPasswordCode || !user.resetPasswordExpiry) {
-      throw new Error("Reset code not found or expired");
+    async resendVerificationCode(email: string): Promise<void> {
+        const user = await this.db.user.findUnique({ where: { email } });
+        if (!user) throw userNotFound();
+        if (user.isVerified) throw new BadRequestError('Email already verified', 'EMAIL_ALREADY_VERIFIED');
+
+        const verificationCode = generateOTP();
+        await this.db.user.update({
+            where: { id: user.id },
+            data: { verificationCode, codeExpiry: this.codeExpiry() },
+        });
+
+        await sendVerificationEmail(email, verificationCode, user.firstName);
     }
 
-    if (user.resetPasswordCode !== code) {
-      throw new Error("Invalid reset code");
+    async forgotPassword(email: string): Promise<void> {
+        const user = await this.db.user.findUnique({ where: { email } });
+        if (!user) throw userNotFound();
+
+        const resetPasswordCode = generateOTP();
+        await this.db.user.update({
+            where: { id: user.id },
+            data: { resetPasswordCode, resetPasswordExpiry: this.codeExpiry() },
+        });
+
+        await sendPasswordResetEmail(email, resetPasswordCode, user.firstName);
     }
 
-    if (new Date() > user.resetPasswordExpiry) {
-      throw new Error("Reset code has expired");
+    async resetPassword({ email, code, newPassword }: ResetPasswordInput): Promise<void> {
+        const user = await this.db.user.findUnique({ where: { email } });
+        if (!user) throw userNotFound();
+
+        if (!user.resetPasswordCode || !user.resetPasswordExpiry) {
+            throw new BadRequestError('No active reset request found', 'NO_RESET_REQUEST');
+        }
+        if (user.resetPasswordCode !== code) {
+            throw new BadRequestError('Invalid reset code', 'INVALID_CODE');
+        }
+        if (new Date() > user.resetPasswordExpiry) {
+            throw new BadRequestError('Reset code has expired', 'CODE_EXPIRED');
+        }
+
+        await this.db.user.update({
+            where: { id: user.id },
+            data: {
+                password: await bcrypt.hash(newPassword, env.SALT_ROUNDS),
+                resetPasswordCode: null,
+                resetPasswordExpiry: null,
+            },
+        });
     }
 
-    // Hash the new password
-    const hashedPassword = await bcrypt.hash(newPassword, this.saltRounds);
+    async setup2FA(userId: string): Promise<{ secret: string; qrCode: string }> {
+        const user = await this.findUserById(userId);
+        if (user.totpEnabled) {
+            throw new BadRequestError('2FA is already enabled for this account', 'TWO_FACTOR_ALREADY_ENABLED');
+        }
 
-    // Update user password and clear reset token
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        resetPasswordCode: null,
-        resetPasswordExpiry: null
-      }
-    });
+        const { secret, otpauth_url } = generateTOTPSecret(user.email);
+        const qrCode = await generateQRCode(otpauth_url);
 
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "Password reset successful"
-    };
-  }
+        // Stored but not active until confirmed with a valid code
+        await this.db.user.update({
+            where: { id: userId },
+            data: { totpSecret: secret, totpEnabled: false },
+        });
 
-  // Setup 2FA for a user - generates secret and QR code
-  public async setup2FA(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId }
-    });
-
-    if (!user) {
-      throw new Error("User not found");
+        return { secret, qrCode };
     }
 
-    if (user.totpEnabled) {
-      throw new Error("2FA is already enabled for this account");
+    async verify2FA(userId: string, token: string): Promise<void> {
+        const user = await this.findUserById(userId);
+        if (user.totpEnabled) {
+            throw new BadRequestError('2FA is already enabled', 'TWO_FACTOR_ALREADY_ENABLED');
+        }
+        if (!user.totpSecret) {
+            throw new BadRequestError('2FA setup not initiated', 'TWO_FACTOR_NOT_INITIATED');
+        }
+        if (!(await verifyTOTP(token, user.totpSecret))) {
+            throw new BadRequestError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
+        }
+
+        await this.db.user.update({ where: { id: userId }, data: { totpEnabled: true } });
     }
 
-    // Generate TOTP secret
-    const { secret, otpauth_url } = generateTOTPSecret(user.email);
+    async signin2FA({ email, password, token }: Signin2FAInput, context: RequestContext) {
+        const user = await this.db.user.findUnique({ where: { email } });
+        if (!user) throw invalidCredentials();
 
-    // Generate QR code
-    const qrCode = await generateQRCode(otpauth_url);
+        if (!(await bcrypt.compare(password, user.password))) {
+            await this.recordLoginAttempt(user.id, context, false);
+            throw invalidCredentials();
+        }
 
-    // Store the secret temporarily (it will be confirmed before enabling)
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        totpSecret: secret,
-        // Not enabled yet until verified with a token
-        totpEnabled: false
-      }
-    });
+        if (!user.isVerified) throw notVerified();
 
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "2FA setup initiated",
-      data: {
-        secret: secret, // User should store this as backup
-        qrCode: qrCode
-      }
-    };
-  }
+        if (user.totpEnabled) {
+            if (!user.totpSecret || !(await verifyTOTP(token, user.totpSecret))) {
+                await this.recordLoginAttempt(user.id, context, false);
+                throw new UnauthorizedError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
+            }
+        }
 
-  // Verify and enable 2FA
-  public async verify2FA(userId: string, token: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId }
-    });
+        await this.recordLoginAttempt(user.id, context, true);
 
-    if (!user) {
-      throw new Error("User not found");
+        return { user: toPublicUser(user), ...this.issueTokens(user) };
     }
 
-    if (user.totpEnabled) {
-      throw new Error("2FA is already enabled");
+    async disable2FA(userId: string, token: string): Promise<void> {
+        const user = await this.findUserById(userId);
+        if (!user.totpEnabled || !user.totpSecret) {
+            throw new BadRequestError('2FA is not enabled for this account', 'TWO_FACTOR_NOT_ENABLED');
+        }
+        if (!(await verifyTOTP(token, user.totpSecret))) {
+            throw new BadRequestError('Invalid 2FA token', 'INVALID_TWO_FACTOR_CODE');
+        }
+
+        await this.db.user.update({
+            where: { id: userId },
+            data: { totpSecret: null, totpEnabled: false },
+        });
     }
-
-    if (!user.totpSecret) {
-      throw new Error("2FA setup not initiated");
-    }
-
-    // Verify token with stored secret
-    const isValid = await verifyTOTP(token, user.totpSecret);
-
-    if (!isValid) {
-      throw new Error("Invalid 2FA token");
-    }
-
-    // Enable 2FA for the user
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        totpEnabled: true
-      }
-    });
-
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "2FA enabled successfully"
-    };
-  }
-
-  // Signin with 2FA
-  public async signin2FA(email: string, password: string, token: string, req: Request) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new Error("Invalid email or password");
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      await this.recordLoginAttempt(user.id, req, false);
-      throw new Error("Invalid email or password");
-    }
-
-    // Check if user is verified
-    if (!user.isVerified) {
-      throw new Error("Account not verified. Please verify your email address.");
-    }
-
-    // Verify 2FA token if 2FA is enabled
-    if (user.totpEnabled) {
-      if (!token) {
-        throw new Error("2FA token required");
-      }
-
-      if (!user.totpSecret) {
-        throw new Error("2FA not properly configured");
-      }
-
-      const isValid = await verifyTOTP(token, user.totpSecret);
-      if (!isValid) {
-        await this.recordLoginAttempt(user.id, req, false);
-        throw new Error("Invalid 2FA token");
-      }
-    }
-
-    // Record successful login attempt
-    await this.recordLoginAttempt(user.id, req, true);
-
-    // Generate access and refresh tokens
-    const accessToken = generateAccessToken(user.id, user.role);
-    const refreshToken = generateRefreshToken(user.id, user.role);
-
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "User signed in successfully",
-      data: {
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          role: user.role,
-          isVerified: user.isVerified,
-          totpEnabled: user.totpEnabled
-        },
-        accessToken,
-        refreshToken,
-      },
-    };
-  }
-
-  // Disable 2FA
-  public async disable2FA(userId: string, token: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId }
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    if (!user.totpEnabled) {
-      throw new Error("2FA is not enabled for this account");
-    }
-
-    if (!user.totpSecret) {
-      throw new Error("2FA not properly configured");
-    }
-
-    // Verify token before disabling
-    const isValid = await verifyTOTP(token, user.totpSecret);
-    if (!isValid) {
-      throw new Error("Invalid 2FA token");
-    }
-
-    // Disable 2FA
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        totpSecret: null,
-        totpEnabled: false
-      }
-    });
-
-    return {
-      status: "success",
-      statusCode: 200,
-      message: "2FA disabled successfully"
-    };
-  }
 }

@@ -1,6 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { env } from '../../config/env.js';
-import { errorHandler } from '../../shared/utils/http-error.js';
+import { TooManyRequestsError } from '../../shared/errors/app-error.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
@@ -12,7 +12,7 @@ const createLimiter = (limit: number, message: string) => rateLimit({
     legacyHeaders: false,
     skip: () => !env.RATE_LIMIT_ENABLED,
     handler: (_req, _res, next) => {
-        next(errorHandler(429, message));
+        next(new TooManyRequestsError(message));
     }
 });
 
