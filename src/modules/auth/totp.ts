@@ -1,6 +1,6 @@
 import { generateSecret, generateURI, verify } from 'otplib';
 import QRCode from 'qrcode';
-import { logger } from '../lib/logger.js';
+import { logger } from '../../lib/logger.js';
 
 const ISSUER = 'App name';
 

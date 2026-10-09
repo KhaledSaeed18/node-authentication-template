@@ -1,5 +1,5 @@
 import rateLimit from 'express-rate-limit';
-import { errorHandler } from '../../utils/errorHandler.js';
+import { errorHandler } from '../../shared/utils/http-error.js';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 

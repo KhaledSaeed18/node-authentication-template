@@ -1,11 +1,11 @@
 import { prisma } from "../../lib/prisma.js";
 import bcrypt from "bcryptjs";
-import { generateAccessToken, generateRefreshToken } from "../../utils/generateTokens.js";
+import { generateAccessToken, generateRefreshToken } from "./tokens.js";
 import type { Request } from "express";
 import jwt from "jsonwebtoken";
-import { generateOTP } from "../../utils/generateOTP.js";
-import { sendPasswordResetEmail, sendVerificationEmail } from "../../mails/email.js";
-import { generateQRCode, generateTOTPSecret, verifyTOTP } from "../../utils/totp.js";
+import { generateOTP } from "../../shared/utils/otp.js";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../../mail/email.js";
+import { generateQRCode, generateTOTPSecret, verifyTOTP } from "./totp.js";
 import { env } from "../../config/env.js";
 
 export class AuthService {

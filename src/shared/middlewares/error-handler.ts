@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import type { NextFunction, Request, Response } from "express";
-import { env } from "../config/env.js";
+import { env } from "../../config/env.js";
 
 interface ValidationError {
   field?: string;

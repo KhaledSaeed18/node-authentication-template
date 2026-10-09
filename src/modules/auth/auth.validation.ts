@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Request, Response, NextFunction } from 'express';
-import { errorHandler } from '../../utils/errorHandler.js';
-import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from '../../constants/auth.constants.js';
+import { errorHandler } from '../../shared/utils/http-error.js';
+import { BLOCKED_DOMAINS, COMMON_PASSWORDS } from './auth.constants.js';
 
 // Trim first, then check the format (z.email() alone rejects surrounding spaces)
 const emailField = (message: string) => z.string().trim().pipe(z.email(message));

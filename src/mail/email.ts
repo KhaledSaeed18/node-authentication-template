@@ -1,5 +1,5 @@
-import { PASSWORD_RESET_EMAIL_TEMPLATE, VERIFICATION_EMAIL_TEMPLATE } from "../constants/emailTemplates.js";
-import transporter from "./nodemailer.config.js";
+import { PASSWORD_RESET_EMAIL_TEMPLATE, VERIFICATION_EMAIL_TEMPLATE } from "./templates.js";
+import transporter from "./transporter.js";
 import { env } from "../config/env.js";
 
 // Send verification email

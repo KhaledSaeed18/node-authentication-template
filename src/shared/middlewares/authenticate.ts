@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
-import { errorHandler } from '../utils/errorHandler.js';
-import type { Role } from '../generated/prisma/enums.js';
-import { env } from '../config/env.js';
+import { errorHandler } from '../utils/http-error.js';
+import type { Role } from '../../generated/prisma/enums.js';
+import { env } from '../../config/env.js';
 
 export type AuthTokenPayload = JwtPayload & { userId: string; role: Role };
 

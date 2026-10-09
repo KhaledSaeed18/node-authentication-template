@@ -1,8 +1,8 @@
 import express, { type Express, type Request, type Response } from 'express';
 import cors from "cors";
 import helmet from 'helmet';
-import { ErrorMiddleware } from './middlewares/error.middleware.js';
-import AuthRouter from './api/auth/auth.routes.js';
+import { ErrorMiddleware } from './shared/middlewares/error-handler.js';
+import AuthRouter from './modules/auth/auth.routes.js';
 import { env } from './config/env.js';
 import { httpLogger, logger } from './lib/logger.js';
 
