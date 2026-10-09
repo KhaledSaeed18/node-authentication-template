@@ -98,7 +98,7 @@ A STRIDE analysis of the authentication service. Each threat lists the mitigatio
 - **Lockout can be triggered by an attacker** to annoy a user for 15 minutes (mitigated by passkeys, but not removed).
 - **`ENCRYPTION_KEY` is a single point of failure** for data at rest, and rotating it is not automated.
 - **TOTP and email codes are phishable** in real time; only passkeys resist phishing.
-- **Dependencies**: the Prisma CLI pins `deepmerge-ts` 7.x with a known high-severity advisory (only reachable through Prisma's own config loading). Tracked by Trivy and Dependabot.
+- **Dependencies of the migration tooling**: the Prisma CLI pins `deepmerge-ts` 7.x, which has a published advisory. The CLI only exists in the `migrate` image, which runs briefly as a release step; the API image doesn't contain it.
 - **Breached password screening fails open**: when Have I Been Pwned is unreachable, a breached password can get through (logged as a warning).
 
 ## Out of scope

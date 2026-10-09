@@ -349,8 +349,10 @@ Emails are captured by an in-memory mailer, so tests read the codes directly.
 
 ## Deployment
 
-- Build the image with `docker build -t node-auth .`. It runs as a non-root user, has a health check on `/health`, ships without npm/yarn, and is built, smoke tested and scanned by CI on every push.
-- Run `node_modules/.bin/prisma migrate deploy` from the same image as a release step before starting new instances.
+- Build two images from the Dockerfile:
+  - `docker build -t node-auth .` (target `runtime`, the default): the API. Runs as a non-root user, has a health check on `/health`, contains only what the server loads (no Prisma CLI, npm or yarn).
+  - `docker build --target migrate -t node-auth-migrate .`: runs `prisma migrate deploy` and exits. Run it as a release step before starting new API instances.
+- Both are built, migrated against a real PostgreSQL, smoke tested and scanned by CI on every push.
 - Set `NODE_ENV=production`, the required secrets, `TRUST_PROXY` when behind a load balancer and `REDIS_URL` when running more than one instance.
 - Schedule `node dist/scripts/cleanup.js`, for example daily.
 - Emails are delivered by the outbox worker, which runs inside each API instance by default. To scale it separately, set `OUTBOX_WORKER_ENABLED=false` on the API and run `node dist/scripts/worker.js` as its own deployment; any number of workers can run at once.

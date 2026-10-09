@@ -5,6 +5,7 @@
 ### Added
 
 - Account deletion (`DELETE /users/me`, with re-authentication) and data export (`GET /users/me/export`).
+- Separate `migrate` Docker target for the release step; the API image only contains what the server loads (on amd64, about 350 MB instead of 730 MB, and no Prisma CLI).
 - Breached password screening with Have I Been Pwned (k-anonymity) for signup, reset and change. Fails open; `PASSWORD_BREACH_CHECK=false` turns it off.
 
 ## 3.1.0
