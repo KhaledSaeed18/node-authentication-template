@@ -14,18 +14,21 @@
 
 ### 1. Getting Started
 
+- Make sure you have Node.js 24 or newer and Yarn 1.x installed.
 - Fork this repository.
 - Clone your forked repository:
 
   ```bash
-  git clone https://github.com/KhaledSaeed18/node-authentication-template.git
+  git clone https://github.com/<your-username>/node-authentication-template.git
   ```
 
-- Install dependencies:
+- Install dependencies (this also generates the Prisma client):
 
   ```bash
   yarn install
   ```
+
+- Copy `.env.example` to `.env` and fill in the values.
 
 ---
 
@@ -44,7 +47,7 @@
 ### 3. Code Style Guide
 
 - Use TypeScript best practices.
-- Follow consistent code formatting (Prettier and ESLint configured).
+- Keep the code lint-clean (`yarn lint`) and type-safe (`yarn typecheck`).
 - Validate requests using Zod.
 - Keep architecture modular and clean (separate routes, controllers, services).
 
@@ -72,7 +75,7 @@
 
 ### 5. Pull Request Process
 
-- Ensure your changes pass all tests and linting.
+- Ensure `yarn lint`, `yarn typecheck` and `yarn build` pass.
 - Reference the related issue in the PR.
 - Add a clear description of what you’ve done.
 - Mark PR as draft if still working, or ready for review once complete.
