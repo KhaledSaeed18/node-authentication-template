@@ -1,295 +1,270 @@
 # Node Authentication Template
 
-## Introduction
+A secure, modern authentication API for Node.js, built with TypeScript, Express 5, Prisma 7 and PostgreSQL. It covers the full account lifecycle (signup, email verification, sign in, password reset, TOTP two-factor authentication with recovery codes, rotating refresh tokens and session management) and is meant to be dropped into a project or used as the starting point of one.
 
-The Node Authentication Template is a robust, secure, and feature-rich authentication system built with Node.js and TypeScript. It provides a complete authentication solution with advanced security features including email verification, password reset, two-factor authentication (2FA), rate limiting, and more. This template is designed to be easily integrated into any Node.js project requiring secure user authentication.
-
-[![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-404D59?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![CI](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml/badge.svg)](https://github.com/KhaledSaeed18/node-authentication-template/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-24-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Express.js](https://img.shields.io/badge/Express-5-404D59?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-7-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)](https://www.prisma.io/)
-[![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=JSON%20web%20tokens&logoColor=white)](https://jwt.io/)
-[![bcrypt](https://img.shields.io/badge/bcrypt-CF1A12?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/bcryptjs)
-[![2FA](https://img.shields.io/badge/2FA-FFA500?style=for-the-badge&logo=authy&logoColor=white)](https://www.npmjs.com/package/otplib)
-[![Nodemailer](https://img.shields.io/badge/Nodemailer-0F9DCE?style=for-the-badge&logo=minutemailer&logoColor=white)](https://nodemailer.com/)
-[![Zod](https://img.shields.io/badge/Zod-3068b7?style=for-the-badge&logo=zod&logoColor=white)](https://github.com/colinhacks/zod)
-[![dotenv](https://img.shields.io/badge/dotenv-ECD53F?style=for-the-badge&logo=dotenv&logoColor=black)](https://www.npmjs.com/package/dotenv)
-[![ESLint](https://img.shields.io/badge/ESLint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white)](https://eslint.org/)
-[![tsx](https://img.shields.io/badge/tsx-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://tsx.is/)
+[![Zod](https://img.shields.io/badge/Zod-4-3068b7?style=for-the-badge&logo=zod&logoColor=white)](https://zod.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 
-## Tech Stack & Dependencies
+## Features
 
-### Core Technologies
+**Accounts**
 
-- Node.js 24+ (native ES modules)
-- TypeScript 6
-- Express 5
-- PostgreSQL
-- Prisma ORM 7 (with the `pg` driver adapter)
+- Signup with email verification (6 digit code)
+- Sign in with email and password, case-insensitive emails
+- Forgot / reset password, change password
+- Profile endpoints and an admin-only user list (role based access control)
 
-### Key Dependencies
+**Two-factor authentication**
 
-**Authentication & Security:**
+- TOTP (Google Authenticator, 1Password, Authy, ...) with QR code setup
+- Two-step sign in using a short-lived challenge token
+- 10 one-time recovery codes, regenerable
+- Secrets encrypted at rest, codes can't be replayed
 
-- jsonwebtoken: JWT implementation for token-based authentication
-- bcryptjs: Password hashing library
-- otplib & qrcode: TOTP-based two-factor authentication
-- express-rate-limit: API rate limiting to prevent abuse
-- sanitize-html: Input sanitization to prevent XSS attacks
+**Sessions**
 
-**Email Services:**
+- Short-lived JWT access tokens (15 minutes by default)
+- Opaque refresh tokens, rotated on every use, with reuse detection
+- Logout, logout everywhere, list and revoke individual sessions
+- Revocation is immediate: every request checks that the session is still active
+- Paginated login history with IP, user agent and device type
 
-- nodemailer: Email sending over Gmail with OAuth2 (handles token refresh itself)
+**Security**
 
-**Validation:**
+- Argon2id password hashing (old bcrypt hashes are upgraded on sign in)
+- Account lockout after repeated failed sign-ins, constant-time rejection of unknown emails
+- One-time codes stored as HMACs, single use, 5 attempts max, resend cooldown
+- No account enumeration on forgot-password, resend-verification, verify-email and reset-password
+- Email notifications for password and 2FA changes
+- Rate limiting on every endpoint, optionally shared through Redis
+- Helmet security headers, strict CORS, request size limits, validated configuration
 
-- zod 4: Schema validation and type checking
+**Operations**
 
-**Development Tools:**
+- Structured JSON logs (pino) with request ids and secret redaction
+- Liveness and readiness probes, graceful shutdown
+- OpenAPI 3.1 document and interactive API reference at `/docs`
+- Docker image and a Compose stack (PostgreSQL, Redis, Mailpit)
+- Data retention job for expired sessions, codes and old login history
+- Integration tests against a real database, CI on GitHub Actions, Dependabot
 
-- dotenv: Environment variable management
-- eslint 10 + typescript-eslint: Code linting
-- prisma: Prisma CLI for migrations and client generation
-- tsx: Runs TypeScript directly with watch mode during development
+## Tech Stack
 
-## Environment Variables
+| Area | Tools |
+| --- | --- |
+| Runtime | Node.js 24 (native ES modules), TypeScript 6 |
+| HTTP | Express 5, helmet, cors, express-rate-limit (+ Redis store) |
+| Database | PostgreSQL, Prisma 7 with the `pg` driver adapter |
+| Validation | Zod 4 (also used to generate the OpenAPI document) |
+| Auth | jsonwebtoken, @node-rs/argon2, otplib, qrcode |
+| Email | Nodemailer (SMTP, Gmail OAuth2 or console) |
+| Logging | pino, pino-http |
+| Tooling | tsx, ESLint 10, Vitest, Supertest, Docker |
 
-Copy `.env.example` to `.env` and fill in the values:
+## Quick Start
 
-``` .env
-# Server
-PORT=4000
-BASE_URL=/api
-API_VERSION=v1
-NODE_ENV=development
-
-# App
-SALT_ROUNDS=10
-
-# Database
-DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DB_NAME
-
-# JWT
-JWT_SECRET=
-JWT_REFRESH_SECRET=
-
-# Email (Gmail over OAuth2)
-USER_EMAIL=
-CLIENT_ID=
-CLIENT_SECRET=
-REFRESH_TOKEN=
-```
-
-`DATABASE_URL` is read by both the app and the Prisma CLI (through `prisma.config.ts`).
-
-## Running the Application
-
-### Requirements
-
-- Node.js 24 or newer (an `.nvmrc` is included)
-- Yarn 1.x
-- A PostgreSQL database
-
-### Setup
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/KhaledSaeed18/node-authentication-template.git
-   cd node-authentication-template
-   ```
-
-2. **Install dependencies with Yarn**
-
-   ```bash
-   yarn install
-   ```
-
-   This also generates the Prisma client into `src/generated/prisma`.
-
-3. **Set up environment variables**
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   Then fill in the values as described in the section above.
-
-4. **Apply database migrations**
-
-   ```bash
-   yarn db:migrate
-   ```
-
-### Development Mode
-
-Run the server in development mode with hot-reloading:
+### With Docker
 
 ```bash
+export JWT_SECRET=$(openssl rand -base64 48)
+export ENCRYPTION_KEY=$(openssl rand -base64 32)
+docker compose up --build
+```
+
+This starts PostgreSQL, Redis, [Mailpit](https://mailpit.axllent.org/) and the API, after applying the migrations.
+
+- API: <http://localhost:4000/api/v1>
+- Emails sent by the API: <http://localhost:8025>
+
+The container runs with `NODE_ENV=production`, so the API reference is off unless you set `API_DOCS_ENABLED=true`. Host ports can be changed with `API_PORT`, `DB_PORT`, `REDIS_PORT`, `MAILPIT_UI_PORT` and `MAILPIT_SMTP_PORT`.
+
+### Locally
+
+Requirements: Node.js 24+ (see `.nvmrc`), Yarn 1.x and PostgreSQL (`docker compose up -d db mailpit` works).
+
+```bash
+git clone https://github.com/KhaledSaeed18/node-authentication-template.git
+cd node-authentication-template
+yarn install            # also generates the Prisma client
+cp .env.example .env    # then fill in DATABASE_URL, JWT_SECRET and ENCRYPTION_KEY
+yarn db:migrate
 yarn dev
 ```
 
-### Production Mode
+The API reference is then at <http://localhost:4000/docs>. With the default `MAIL_TRANSPORT=console`, emails (and their codes) are printed in the server log.
 
-1. **Build the application**
+## Configuration
 
-   ```bash
-   yarn build
-   ```
+All settings are environment variables, validated at startup: the server refuses to start with a clear message if something is missing or invalid. See [`.env.example`](.env.example).
 
-2. **Apply pending migrations and start the server**
+| Variable | Default | Description |
+| --- | --- | --- |
+| `NODE_ENV` | `development` | `development`, `test` or `production` |
+| `PORT` | `4000` | HTTP port |
+| `BASE_URL` / `API_VERSION` | `/api` / `v1` | Routes are served under `/api/v1` |
+| `DATABASE_URL` | required | PostgreSQL connection string |
+| `JWT_SECRET` | required | Access token signing secret, 32+ characters |
+| `ENCRYPTION_KEY` | required | 32 random bytes, base64. Keys for code hashing and 2FA secret encryption |
+| `JWT_ISSUER` / `JWT_AUDIENCE` | `node-auth` / `node-auth-api` | Checked on every access token |
+| `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | `15m` / `7d` | Token lifetimes (`s`, `m`, `h`, `d`) |
+| `CORS_ORIGINS` | `http://localhost:3000` | Comma separated list of allowed origins |
+| `TRUST_PROXY` | `false` | Express trust proxy setting, needed behind a load balancer for correct client IPs |
+| `REDIS_URL` | unset | Share rate limit counters between instances |
+| `RATE_LIMIT_ENABLED` | `true` | Turn rate limiting off (used by the tests) |
+| `LOG_LEVEL` | `info` | pino log level |
+| `APP_NAME` | `Node Auth` | Shown in emails and authenticator apps |
+| `API_DOCS_ENABLED` | on outside production | Serve `/docs` |
+| `LOGIN_HISTORY_RETENTION_DAYS` | `90` | Used by the cleanup job |
+| `MAIL_TRANSPORT` | `console` | `console`, `smtp` or `gmail` |
+| `MAIL_FROM` | `Node Auth <no-reply@example.com>` | Sender address |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | | For `MAIL_TRANSPORT=smtp` (SES, Postmark, Mailgun, ...) |
+| `GMAIL_USER`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` | | For `MAIL_TRANSPORT=gmail` |
 
-   ```bash
-   yarn db:deploy
-   yarn start
-   ```
-
-### Available Scripts
+## Scripts
 
 | Script | Description |
 | --- | --- |
 | `yarn dev` | Start the dev server with `tsx watch` |
-| `yarn build` | Compile TypeScript to `dist/` |
+| `yarn build` | Compile to `dist/` |
 | `yarn start` | Run the compiled server |
-| `yarn typecheck` | Type-check without emitting |
-| `yarn lint` | Lint the project with ESLint |
-| `yarn db:generate` | Regenerate the Prisma client (runs automatically on install) |
+| `yarn test` | Run the test suite (needs `TEST_DATABASE_URL`) |
+| `yarn test:watch` | Tests in watch mode |
+| `yarn typecheck` | Type-check source, tests and config |
+| `yarn lint` | ESLint |
+| `yarn db:generate` | Regenerate the Prisma client (runs on install) |
 | `yarn db:migrate` | Create and apply migrations in development |
 | `yarn db:deploy` | Apply pending migrations in production |
 | `yarn db:studio` | Open Prisma Studio |
+| `yarn db:cleanup` | Delete expired sessions, codes and old login history |
 
-> Since Prisma 7, `migrate dev` no longer regenerates the client. Run `yarn db:generate` after changing `schema.prisma`.
+## API
+
+The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json`). All routes below are under `/api/v1` except the probes. Protected routes expect `Authorization: Bearer <accessToken>`.
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/auth/signup` | | Create an account, emails a verification code |
+| POST | `/auth/verify-email` | | Verify the email with the code |
+| POST | `/auth/resend-verification` | | Send a new verification code |
+| POST | `/auth/signin` | | Sign in; returns tokens or a 2FA challenge |
+| POST | `/auth/2fa/signin` | | Finish a 2FA sign in with `{ mfaToken, code }` |
+| POST | `/auth/refresh-token` | | Rotate the refresh token, get a new token pair |
+| POST | `/auth/forgot-password` | | Email a password reset code |
+| POST | `/auth/reset-password` | | Set a new password with the code |
+| POST | `/auth/change-password` | yes | Change the password, signs out other sessions |
+| POST | `/auth/logout` | yes | End the current session |
+| POST | `/auth/logout-all` | yes | End every session |
+| GET | `/auth/sessions` | yes | List active sessions |
+| DELETE | `/auth/sessions/:sessionId` | yes | End one session |
+| GET | `/auth/login-history` | yes | Sign-in attempts (`?limit=&cursor=`) |
+| POST | `/auth/2fa/setup` | yes | Start 2FA setup, returns secret and QR code |
+| POST | `/auth/2fa/verify` | yes | Turn 2FA on, returns recovery codes |
+| POST | `/auth/2fa/recovery-codes` | yes | Replace the recovery codes |
+| POST | `/auth/2fa/disable` | yes | Turn 2FA off |
+| GET | `/users/me` | yes | Current user |
+| PATCH | `/users/me` | yes | Update first/last name |
+| GET | `/users` | admin | List users (`?limit=&cursor=`) |
+| GET | `/health` | | Liveness probe |
+| GET | `/ready` | | Readiness probe (database, Redis) |
+
+### Responses
+
+Successful responses:
+
+```json
+{ "status": "success", "statusCode": 200, "message": "User signed in successfully", "data": {} }
+```
+
+Errors carry a stable, machine-readable `code`:
+
+```json
+{
+  "status": "fail",
+  "statusCode": 400,
+  "code": "VALIDATION_ERROR",
+  "message": "Validation failed. Please check your input.",
+  "validationErrors": [{ "field": "email", "message": "Invalid email format" }]
+}
+```
+
+### Sign in flow
+
+1. `POST /auth/signin` with email and password.
+2. Without 2FA, the response contains `accessToken` and `refreshToken`.
+3. With 2FA, it contains `{ requiresTwoFactor: true, mfaToken }`. Send `POST /auth/2fa/signin` with the `mfaToken` and a 6 digit code (or a recovery code) within 5 minutes.
+4. When the access token expires, call `POST /auth/refresh-token`. Always keep the new refresh token from the response: the old one stops working, and presenting it again later revokes the session.
+
+## Security Notes
+
+- **Passwords** are hashed with Argon2id (19 MiB, t=2, p=1). Hashes from older versions (bcrypt) keep working and are upgraded on the next sign in.
+- **Lockout**: 5 failed sign-ins (password or 2FA code) within 15 minutes lock the account until the failures age out. Unknown emails are checked against a dummy hash so they take as long to reject as a wrong password.
+- **Codes** for email verification and password reset are stored as HMACs keyed from `ENCRYPTION_KEY`, are single use, expire after 15 minutes and are discarded after 5 wrong attempts.
+- **Enumeration**: endpoints that take an email answer the same way whether or not the account exists. Signup still returns 409 for a taken email; that is a deliberate usability tradeoff and it is rate limited.
+- **Refresh tokens** are random, stored as SHA-256 hashes and rotated on every use. A reused token revokes its session (with a 10 second grace window for concurrent refreshes).
+- **2FA secrets** are encrypted with AES-256-GCM. The last accepted time step is stored so a code can't be used twice.
+- **Sessions** end on logout, password reset (all sessions) and password change (all other sessions).
+- **Keep `ENCRYPTION_KEY` safe and stable**: changing it invalidates outstanding codes and makes stored 2FA secrets unreadable.
 
 ## Project Structure
 
-The project follows a modular architecture for better organization and maintainability:
-
-``` bash
-├── .env.example
-├── .gitignore
-├── .nvmrc
-├── eslint.config.mjs
-├── package.json
-├── prisma.config.ts
+```bash
 ├── prisma
 │   ├── migrations
 │   └── schema.prisma
 ├── src
-│   ├── api
-│   │   └── auth
-│   │       ├── auth.controller.ts
-│   │       ├── auth.rateLimiting.ts
-│   │       ├── auth.routes.ts
-│   │       ├── auth.service.ts
-│   │       └── auth.validation.ts
-│   ├── constants
-│   │   ├── auth.constants.ts
-│   │   └── emailTemplates.ts
-│   ├── generated
-│   │   └── prisma          # generated Prisma client (gitignored)
-│   ├── index.ts
-│   ├── lib
-│   │   └── prisma.ts       # shared PrismaClient instance
-│   ├── mails
-│   │   ├── email.ts
-│   │   └── nodemailer.config.ts
-│   ├── middlewares
-│   │   ├── authorization.middleware.ts
-│   │   ├── error.middleware.ts
-│   │   ├── sanitizeBody.middleware.ts
-│   │   └── securityHeaders.middleware.ts
-│   └── utils
-│       ├── errorHandler.ts
-│       ├── generateOTP.ts
-│       ├── generateTokens.ts
-│       └── totp.ts
-├── tsconfig.json
-└── yarn.lock
+│   ├── app.ts                      # builds the Express app (dependency injection root)
+│   ├── server.ts                   # starts the server, graceful shutdown
+│   ├── config/env.ts               # validated environment variables
+│   ├── docs                        # OpenAPI document and /docs
+│   ├── lib                         # logger, Prisma client, Redis client
+│   ├── mail                        # mailer transports and email templates
+│   ├── modules
+│   │   ├── auth                    # routes, controller, service, schemas, rate limits,
+│   │   │                           # sessions, tokens, TOTP, verification and recovery codes
+│   │   ├── users                   # profile and admin endpoints
+│   │   ├── health                  # liveness and readiness probes
+│   │   └── maintenance             # data retention job
+│   ├── scripts/cleanup.ts          # entry point for the cleanup job
+│   ├── shared                      # errors, middlewares, crypto/password utils, validation
+│   └── generated/prisma            # generated Prisma client (gitignored)
+├── tests                           # integration and unit tests
+├── compose.yaml
+├── Dockerfile
+└── prisma.config.ts
 ```
 
-### Key Components
+Each module follows the same layering: **routes** wire middlewares (rate limit, authentication, validation) to the **controller**, which only translates HTTP into calls on the **service**. Services hold the business logic, receive their dependencies (Prisma, mailer, other services) through the constructor and throw typed `AppError`s that the central error handler turns into responses.
 
-- **api/auth**: Contains all authentication-related logic
-- **constants**: Application-wide constants and configurations
-- **lib**: Shared infrastructure such as the Prisma client
-- **mails**: Email service implementation
-- **middlewares**: Express middlewares for security and request processing
-- **utils**: Utility functions for common operations
+## Testing
 
-## Features & Endpoints
+The tests run against a real PostgreSQL database:
 
-The paths below assume `BASE_URL=/api` and `API_VERSION=v1`. Protected routes expect an `Authorization: Bearer <accessToken>` header.
+```bash
+docker compose up -d db                     # also creates the auth_test database
+export TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/auth_test
+yarn test
+```
 
-### Authentication
+Emails are captured by an in-memory mailer, so tests read the codes directly.
 
-#### User Registration & Verification
+## Deployment
 
-- `POST /api/v1/auth/signup`: Register a new user
-  - Required fields: firstName, lastName, email, password
-  - Creates user and sends verification email
-- `POST /api/v1/auth/verify-email`: Verify email with OTP
-  - Required fields: email, code (6-digit)
-- `POST /api/v1/auth/resend-verification`: Resend verification code
-  - Required fields: email
+- Build the image with `docker build -t node-auth .`. It runs as a non-root user and has a health check on `/health`.
+- Run `node_modules/.bin/prisma migrate deploy` from the same image as a release step before starting new instances.
+- Set `NODE_ENV=production`, the required secrets, `TRUST_PROXY` when behind a load balancer and `REDIS_URL` when running more than one instance.
+- Schedule `node dist/scripts/cleanup.js`, for example daily.
+- Point the readiness probe at `/ready` and the liveness probe at `/health`. On `SIGTERM` the server reports not ready, finishes in-flight requests and closes its connections.
 
-#### Login & Session Management
+## Upgrading from 1.x
 
-- `POST /api/v1/auth/signin`: User login
-  - Required fields: email, password
-  - Returns JWT tokens and user info
-  - If 2FA is enabled, responds with `status: "pending"` and `requiresOtp: true` instead of tokens; complete the login with `/2fa/signin`
-- `POST /api/v1/auth/refresh-token`: Refresh access token
-  - Required fields: refreshToken
-  - Returns new access token
-- `GET /api/v1/auth/login-history`: Get user login history
-  - Protected route (requires authorization)
-  - Returns list of login attempts with device info
-
-#### Password Management
-
-- `POST /api/v1/auth/forgot-password`: Initiate password reset
-  - Required fields: email
-  - Sends password reset code via email
-- `POST /api/v1/auth/reset-password`: Reset password with code
-  - Required fields: email, code, newPassword
-
-#### Two-Factor Authentication (2FA)
-
-- `POST /api/v1/auth/2fa/setup`: Set up 2FA
-  - Protected route
-  - Returns QR code and secret for TOTP apps
-- `POST /api/v1/auth/2fa/verify`: Verify and enable 2FA
-  - Protected route
-  - Required fields: token (6-digit TOTP code)
-- `POST /api/v1/auth/2fa/signin`: Complete login with 2FA
-  - Required fields: email, password, token
-- `POST /api/v1/auth/2fa/disable`: Disable 2FA
-  - Protected route
-  - Required fields: token (6-digit TOTP code)
-
-## Security Features
-
-### Password Security
-
-- Strong password requirements with complexity validation
-- Bcrypt hashing with configurable salt rounds
-- Common password detection and prevention
-
-### Protection Against Attacks
-
-- Rate limiting on all authentication endpoints, with standard `RateLimit` / `RateLimit-Policy` response headers
-- CORS restricted to an allowlist of origins (`allowedOrigins` in `src/index.ts`)
-- Security headers (CSP, HSTS, XSS Protection, etc.)
-- Input sanitization to prevent XSS attacks
-- Request validation with Zod; controllers receive the parsed body, with unknown fields stripped
-
-### Session Management
-
-- Short-lived JWT access tokens (20 minutes)
-- Longer-lived refresh tokens (7 days)
-- Login history: every sign-in attempt is recorded with IP address, user agent and device type
-- Role-based access (`USER` / `ADMIN`) through the `authorizeAdmin` middleware
+See [CHANGELOG.md](CHANGELOG.md) for the breaking changes and new environment variables.
 
 ## Contributing
 
