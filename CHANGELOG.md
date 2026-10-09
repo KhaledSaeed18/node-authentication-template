@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 3.1.0
+
+OpenID Connect provider: other applications can now sign their users in through this service.
 
 ### Added
 
