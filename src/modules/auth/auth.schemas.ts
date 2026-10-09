@@ -133,6 +133,56 @@ export const sessionIdParamsSchema = z.object({
     sessionId: z.string().trim().min(1).max(64),
 });
 
+// WebAuthn responses as produced by the browser (e.g. @simplewebauthn/browser).
+// Only the shape is checked here; the cryptographic checks happen in PasskeyService.
+const base64url = z.string().max(20_000).regex(/^[A-Za-z0-9_-]+$/, 'Expected a base64url string');
+
+const registrationResponseSchema = z.looseObject({
+    id: base64url,
+    rawId: base64url,
+    type: z.literal('public-key'),
+    response: z.looseObject({
+        clientDataJSON: base64url,
+        attestationObject: base64url,
+        transports: z.array(z.string()).optional(),
+    }),
+    clientExtensionResults: z.looseObject({}),
+    authenticatorAttachment: z.enum(['platform', 'cross-platform']).optional(),
+});
+
+const authenticationResponseSchema = z.looseObject({
+    id: base64url,
+    rawId: base64url,
+    type: z.literal('public-key'),
+    response: z.looseObject({
+        clientDataJSON: base64url,
+        authenticatorData: base64url,
+        signature: base64url,
+        userHandle: base64url.optional(),
+    }),
+    clientExtensionResults: z.looseObject({}),
+    authenticatorAttachment: z.enum(['platform', 'cross-platform']).optional(),
+});
+
+const passkeyName = z.string().trim().min(1, 'Name is required').max(50, 'Name cannot exceed 50 characters');
+
+export const registerPasskeySchema = z.object({
+    response: registrationResponseSchema,
+    name: passkeyName.default('Passkey'),
+});
+
+export const passkeySigninSchema = z.object({
+    response: authenticationResponseSchema,
+});
+
+export const renamePasskeySchema = z.object({
+    name: passkeyName,
+});
+
+export const passkeyIdParamsSchema = z.object({
+    passkeyId: base64url.max(1024),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type SigninInput = z.infer<typeof signinSchema>;
@@ -145,3 +195,5 @@ export type Verify2FAInput = z.infer<typeof verify2FASchema>;
 export type Signin2FAInput = z.infer<typeof signin2FASchema>;
 export type Disable2FAInput = z.infer<typeof disable2FASchema>;
 export type RegenerateRecoveryCodesInput = z.infer<typeof regenerateRecoveryCodesSchema>;
+export type RegisterPasskeyInput = z.infer<typeof registerPasskeySchema>;
+export type PasskeySigninInput = z.infer<typeof passkeySigninSchema>;

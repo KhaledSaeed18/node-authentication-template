@@ -14,3 +14,5 @@ export const verify2FALimiter = createLimiter('verify-2fa', 5, "Too many 2FA ver
 export const disable2FALimiter = createLimiter('disable-2fa', 3, "Too many 2FA disable attempts, please try again later");
 export const sessionLimiter = createLimiter('session', 50, "Too many requests, please try again later");
 export const changePasswordLimiter = createLimiter('change-password', 5, "Too many password change attempts, please try again later");
+export const passkeyLimiter = createLimiter('passkey', 30, "Too many passkey requests, please try again later");
+export const passkeySigninLimiter = createLimiter('passkey-signin', 20, "Too many passkey sign-in attempts, please try again later");

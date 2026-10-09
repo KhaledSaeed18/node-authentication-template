@@ -14,12 +14,15 @@ import { enqueue, type OutboxJobs } from '../outbox/outbox.js';
 import { type PublicUser, toPublicUser } from '../users/users.mapper.js';
 import type {
     ChangePasswordInput,
+    PasskeySigninInput,
+    RegisterPasskeyInput,
     ResetPasswordInput,
     Signin2FAInput,
     SigninInput,
     SignupInput,
     VerifyEmailInput,
 } from './auth.schemas.js';
+import type { PasskeyService, PublicPasskey } from './passkey.service.js';
 import type { RecoveryCodeService } from './recovery-code.service.js';
 import type { SessionService } from './session.service.js';
 import { signAccessToken, signMfaToken, verifyMfaToken } from './tokens.js';
@@ -50,7 +53,8 @@ export class AuthService {
         private readonly db: PrismaClient,
         private readonly codes: VerificationCodeService,
         private readonly sessions: SessionService,
-        private readonly recoveryCodes: RecoveryCodeService
+        private readonly recoveryCodes: RecoveryCodeService,
+        private readonly passkeys: PasskeyService
     ) {}
 
     // Temporary lock after too many failed signins since the last successful one,
@@ -381,5 +385,46 @@ export class AuthService {
             await tx.recoveryCode.deleteMany({ where: { userId } });
             await enqueue(tx, 'email.security-notice', this.securityNotice(user, 'Two-factor authentication was turned off', context));
         });
+    }
+
+    async passkeyRegistrationOptions(userId: string) {
+        return this.passkeys.registrationOptions(await this.findUserById(userId));
+    }
+
+    async registerPasskey(userId: string, { response, name }: RegisterPasskeyInput, context?: RequestContext): Promise<PublicPasskey> {
+        const user = await this.findUserById(userId);
+        const passkey = await this.passkeys.register(userId, response as Parameters<PasskeyService['register']>[1], name);
+        await enqueue(this.db, 'email.security-notice', this.securityNotice(user, `A passkey named "${name}" was added`, context));
+        return passkey;
+    }
+
+    async passkeySigninOptions() {
+        return this.passkeys.authenticationOptions();
+    }
+
+    // Passwordless sign-in. A passkey with user verification is already two factors
+    // (the device and its biometrics/PIN), so no TOTP code is asked for. The password
+    // lockout doesn't apply either: it protects guessable secrets, and it would let an
+    // attacker lock a user out of their passkey too.
+    async signinWithPasskey({ response }: PasskeySigninInput, context: RequestContext) {
+        const user = await this.passkeys.authenticate(response as Parameters<PasskeyService['authenticate']>[0]);
+        if (!user.isVerified) throw notVerified();
+
+        await this.recordLoginAttempt(user.id, context, true);
+        return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
+    }
+
+    async listPasskeys(userId: string): Promise<PublicPasskey[]> {
+        return this.passkeys.list(userId);
+    }
+
+    async renamePasskey(userId: string, passkeyId: string, name: string): Promise<PublicPasskey> {
+        return this.passkeys.rename(userId, passkeyId, name);
+    }
+
+    async removePasskey(userId: string, passkeyId: string, context?: RequestContext): Promise<void> {
+        const user = await this.findUserById(userId);
+        await this.passkeys.remove(userId, passkeyId);
+        await enqueue(this.db, 'email.security-notice', this.securityNotice(user, 'A passkey was removed', context));
     }
 }

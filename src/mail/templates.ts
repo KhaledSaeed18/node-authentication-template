@@ -334,6 +334,7 @@ export const securityNoticeEmail = ({ appName, name, event, time, ipAddress }: S
         { appName, name, event, when, where }
     );
 
-    return { subject: `${appName}: ${event.toLowerCase()}`, html, text };
+    // Only the first letter is lowercased, names inside the event (e.g. a passkey's) keep their case
+    return { subject: `${appName}: ${event.charAt(0).toLowerCase()}${event.slice(1)}`, html, text };
 };
 

@@ -46,9 +46,16 @@ describe('cleanupExpiredData', () => {
             ],
         });
 
+        await prisma.webAuthnChallenge.createMany({
+            data: [
+                { challenge: 'expired', ceremony: 'AUTHENTICATION', expiresAt: ago(1000) },
+                { challenge: 'live', ceremony: 'AUTHENTICATION', expiresAt: inFuture(60_000) },
+            ],
+        });
+
         const result = await cleanupExpiredData(prisma, { loginHistoryRetentionDays: 90 });
 
-        expect(result).toEqual({ sessions: 2, verificationCodes: 1, loginHistory: 1, outboxMessages: 2 });
+        expect(result).toEqual({ sessions: 2, verificationCodes: 1, loginHistory: 1, outboxMessages: 2, webauthnChallenges: 1 });
         // Pending jobs are never removed, however old
         expect(await prisma.outboxMessage.count({ where: { status: 'PENDING' } })).toBe(1);
         expect((await prisma.session.findMany()).map((s) => s.tokenHash)).toEqual(['active']);

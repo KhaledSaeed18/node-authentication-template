@@ -28,6 +28,10 @@ const envSchema = z.object({
         .refine((value) => Buffer.from(value, 'base64').length === 32, 'ENCRYPTION_KEY must be 32 bytes, base64 encoded'),
 
     CORS_ORIGINS: csv.default(['http://localhost:3000']),
+    // Passkeys (WebAuthn): the relying party ID is the domain the passkeys are bound to
+    // (e.g. example.com), the origins are the exact front-end origins allowed to use them
+    WEBAUTHN_RP_ID: z.string().default('localhost'),
+    WEBAUTHN_ORIGINS: csv.default(['http://localhost:3000']),
     RATE_LIMIT_ENABLED: z.stringbool().default(true),
     // Optional. When set, rate limit counters are shared by all instances through Redis
     REDIS_URL: z.url().optional(),

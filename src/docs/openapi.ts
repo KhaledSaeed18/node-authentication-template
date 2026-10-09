@@ -5,8 +5,12 @@ import {
     changePasswordSchema,
     disable2FASchema,
     forgotPasswordSchema,
+    passkeyIdParamsSchema,
+    passkeySigninSchema,
     refreshTokenSchema,
     regenerateRecoveryCodesSchema,
+    registerPasskeySchema,
+    renamePasskeySchema,
     resendVerificationSchema,
     resetPasswordSchema,
     sessionIdParamsSchema,
@@ -62,6 +66,21 @@ const loginAttempt = z
         successful: z.boolean(),
     })
     .meta({ id: 'LoginAttempt' });
+
+const passkey = z
+    .object({
+        id: z.string().meta({ description: 'Credential id (base64url)' }),
+        name: z.string(),
+        deviceType: z.enum(['singleDevice', 'multiDevice']).meta({ description: 'multiDevice means synced (e.g. iCloud Keychain)' }),
+        backedUp: z.boolean(),
+        createdAt: z.iso.datetime(),
+        lastUsedAt: z.iso.datetime().nullable(),
+    })
+    .meta({ id: 'Passkey' });
+
+const webauthnOptions = z
+    .looseObject({ challenge: z.string() })
+    .meta({ description: 'Pass to navigator.credentials (e.g. with @simplewebauthn/browser)' });
 
 const recoveryCodes = z.object({
     recoveryCodes: z.array(z.string()).meta({ description: 'Shown only once, store them somewhere safe' }),
@@ -280,6 +299,65 @@ const paths: ZodOpenApiPathsObject = {
             responses: { '200': success('2FA disabled') },
         }),
     },
+    '/auth/passkeys/signin/options': {
+        post: operation({
+            tags: ['Passkeys'],
+            summary: 'Start a passwordless sign-in',
+            description: 'Returns WebAuthn request options (usernameless: the browser offers the saved passkeys).',
+            responses: { '200': success('Request options', z.object({ options: webauthnOptions })) },
+        }),
+    },
+    '/auth/passkeys/signin': {
+        post: operation({
+            tags: ['Passkeys'],
+            summary: 'Finish a passwordless sign-in with the authenticator response',
+            description: 'A passkey with user verification counts as two factors, so no 2FA code is asked for.',
+            requestBody: json(passkeySigninSchema),
+            responses: { '200': success('Signed in', tokens.extend({ user })), '401': error('Verification failed') },
+        }),
+    },
+    '/auth/passkeys/register/options': {
+        post: operation({
+            ...authenticated,
+            tags: ['Passkeys'],
+            summary: 'Start registering a passkey',
+            responses: { '200': success('Creation options', z.object({ options: webauthnOptions })) },
+        }),
+    },
+    '/auth/passkeys/register': {
+        post: operation({
+            ...authenticated,
+            tags: ['Passkeys'],
+            summary: 'Finish registering a passkey with the authenticator response',
+            requestBody: json(registerPasskeySchema),
+            responses: { '201': success('Passkey registered', z.object({ passkey })), '401': error('Verification failed') },
+        }),
+    },
+    '/auth/passkeys': {
+        get: operation({
+            ...authenticated,
+            tags: ['Passkeys'],
+            summary: "List the user's passkeys",
+            responses: { '200': success('Passkeys', z.object({ passkeys: z.array(passkey) })) },
+        }),
+    },
+    '/auth/passkeys/{passkeyId}': {
+        patch: operation({
+            ...authenticated,
+            tags: ['Passkeys'],
+            summary: 'Rename a passkey',
+            requestParams: { path: passkeyIdParamsSchema },
+            requestBody: json(renamePasskeySchema),
+            responses: { '200': success('Renamed', z.object({ passkey })), '404': error('Passkey not found') },
+        }),
+        delete: operation({
+            ...authenticated,
+            tags: ['Passkeys'],
+            summary: 'Remove a passkey',
+            requestParams: { path: passkeyIdParamsSchema },
+            responses: { '200': success('Removed'), '404': error('Passkey not found') },
+        }),
+    },
     '/users/me': {
         get: operation({
             ...authenticated,
@@ -316,7 +394,7 @@ export const createOpenApiDocument = () =>
             title: `${env.APP_NAME} API`,
             version: '2.0.0',
             description:
-                'Authentication API: email verification, password reset, TOTP 2FA with recovery codes, rotating refresh tokens and session management.',
+                'Authentication API: passkeys, email verification, password reset, TOTP 2FA with recovery codes, rotating refresh tokens and session management.',
         },
         servers: [{ url: `${env.BASE_URL}/${env.API_VERSION}` }],
         components: {

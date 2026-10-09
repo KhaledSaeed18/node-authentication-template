@@ -111,4 +111,39 @@ export class AuthController {
         await this.authService.disable2FA(currentUser(req).userId, req.body.code, requestContext(req));
         sendSuccess(res, 200, '2FA disabled successfully');
     };
+
+    passkeyRegistrationOptions = async (req: Request, res: Response) => {
+        const options = await this.authService.passkeyRegistrationOptions(currentUser(req).userId);
+        sendSuccess(res, 200, 'Passkey registration options created', { options });
+    };
+
+    registerPasskey = async (req: Request, res: Response) => {
+        const passkey = await this.authService.registerPasskey(currentUser(req).userId, req.body, requestContext(req));
+        sendSuccess(res, 201, 'Passkey registered successfully', { passkey });
+    };
+
+    passkeySigninOptions = async (_req: Request, res: Response) => {
+        const options = await this.authService.passkeySigninOptions();
+        sendSuccess(res, 200, 'Passkey sign-in options created', { options });
+    };
+
+    signinWithPasskey = async (req: Request, res: Response) => {
+        const data = await this.authService.signinWithPasskey(req.body, requestContext(req));
+        sendSuccess(res, 200, 'User signed in successfully', data);
+    };
+
+    listPasskeys = async (req: Request, res: Response) => {
+        const passkeys = await this.authService.listPasskeys(currentUser(req).userId);
+        sendSuccess(res, 200, 'Passkeys fetched successfully', { passkeys });
+    };
+
+    renamePasskey = async (req: Request, res: Response) => {
+        const passkey = await this.authService.renamePasskey(currentUser(req).userId, String(req.params.passkeyId), req.body.name);
+        sendSuccess(res, 200, 'Passkey renamed successfully', { passkey });
+    };
+
+    removePasskey = async (req: Request, res: Response) => {
+        await this.authService.removePasskey(currentUser(req).userId, String(req.params.passkeyId), requestContext(req));
+        sendSuccess(res, 200, 'Passkey removed successfully');
+    };
 }

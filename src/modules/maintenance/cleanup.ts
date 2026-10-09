@@ -7,6 +7,7 @@ export interface CleanupResult {
     verificationCodes: number;
     loginHistory: number;
     outboxMessages: number;
+    webauthnChallenges: number;
 }
 
 // Delivered jobs are only kept briefly; failed ones longer, so they can be inspected
@@ -22,7 +23,7 @@ export const cleanupExpiredData = async (
 ): Promise<CleanupResult> => {
     const daysAgo = (days: number) => new Date(now.getTime() - days * DAY_MS);
 
-    const [sessions, verificationCodes, loginHistory, outboxMessages] = await Promise.all([
+    const [sessions, verificationCodes, loginHistory, outboxMessages, webauthnChallenges] = await Promise.all([
         db.session.deleteMany({ where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { not: null } }] } }),
         db.verificationCode.deleteMany({ where: { expiresAt: { lt: now } } }),
         db.loginHistory.deleteMany({
@@ -36,6 +37,7 @@ export const cleanupExpiredData = async (
                 ],
             },
         }),
+        db.webAuthnChallenge.deleteMany({ where: { expiresAt: { lt: now } } }),
     ]);
 
     return {
@@ -43,5 +45,6 @@ export const cleanupExpiredData = async (
         verificationCodes: verificationCodes.count,
         loginHistory: loginHistory.count,
         outboxMessages: outboxMessages.count,
+        webauthnChallenges: webauthnChallenges.count,
     };
 };

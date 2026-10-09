@@ -25,10 +25,12 @@ model User {
   // Last accepted TOTP time step, so a code can't be replayed
   totpLastUsedStep Int?
 
-  LoginHistory      LoginHistory[]
-  verificationCodes VerificationCode[]
-  sessions          Session[]
-  recoveryCodes     RecoveryCode[]
+  LoginHistory       LoginHistory[]
+  verificationCodes  VerificationCode[]
+  sessions           Session[]
+  recoveryCodes      RecoveryCode[]
+  passkeys           Passkey[]
+  webauthnChallenges WebAuthnChallenge[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -135,3 +137,41 @@ model OutboxMessage {
   @@index([status, availableAt])
 }
 
+// A WebAuthn credential (passkey). Only the public key is stored.
+model Passkey {
+  // Credential ID, base64url
+  id         String    @id
+  userId     String
+  publicKey  Bytes
+  // Signature counter reported by the authenticator, used to spot cloned keys
+  counter    BigInt    @default(0)
+  transports String[]
+  // singleDevice or multiDevice (synced, e.g. iCloud Keychain, Google Password Manager)
+  deviceType String
+  backedUp   Boolean
+  name       String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum WebAuthnCeremony {
+  REGISTRATION
+  AUTHENTICATION
+}
+
+// Challenge sent to the browser for one WebAuthn ceremony; single use, short-lived
+model WebAuthnChallenge {
+  id        String           @id @default(cuid())
+  challenge String           @unique
+  ceremony  WebAuthnCeremony
+  // Set for registration; sign-in challenges aren't tied to a user (usernameless)
+  userId    String?
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -7,6 +7,8 @@ import {
     disable2FALimiter,
     forgotPasswordLimiter,
     loginHistoryLimiter,
+    passkeyLimiter,
+    passkeySigninLimiter,
     refreshTokenLimiter,
     resendVerificationLimiter,
     resetPasswordLimiter,
@@ -22,8 +24,12 @@ import {
     changePasswordSchema,
     disable2FASchema,
     forgotPasswordSchema,
+    passkeyIdParamsSchema,
+    passkeySigninSchema,
     refreshTokenSchema,
+    registerPasskeySchema,
     regenerateRecoveryCodesSchema,
+    renamePasskeySchema,
     resendVerificationSchema,
     resetPasswordSchema,
     sessionIdParamsSchema,
@@ -43,6 +49,8 @@ export const createAuthRouter = (controller: AuthController, authenticate: Reque
     router.get(
         '/login-history',
         loginHistoryLimiter,
+    passkeyLimiter,
+    passkeySigninLimiter,
         authenticate,
         validate(paginationQuerySchema, 'query'),
         controller.getLoginHistory
@@ -89,6 +97,28 @@ export const createAuthRouter = (controller: AuthController, authenticate: Reque
         controller.regenerateRecoveryCodes
     );
     router.post('/2fa/disable', authenticate, disable2FALimiter, validate(disable2FASchema), controller.disable2FA);
+
+    // Passkeys: sign-in (public) and management (signed in)
+    router.post('/passkeys/signin/options', passkeySigninLimiter, controller.passkeySigninOptions);
+    router.post('/passkeys/signin', passkeySigninLimiter, validate(passkeySigninSchema), controller.signinWithPasskey);
+    router.post('/passkeys/register/options', passkeyLimiter, authenticate, controller.passkeyRegistrationOptions);
+    router.post('/passkeys/register', passkeyLimiter, authenticate, validate(registerPasskeySchema), controller.registerPasskey);
+    router.get('/passkeys', passkeyLimiter, authenticate, controller.listPasskeys);
+    router.patch(
+        '/passkeys/:passkeyId',
+        passkeyLimiter,
+        authenticate,
+        validate(passkeyIdParamsSchema, 'params'),
+        validate(renamePasskeySchema),
+        controller.renamePasskey
+    );
+    router.delete(
+        '/passkeys/:passkeyId',
+        passkeyLimiter,
+        authenticate,
+        validate(passkeyIdParamsSchema, 'params'),
+        controller.removePasskey
+    );
 
     return router;
 };
