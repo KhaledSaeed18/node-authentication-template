@@ -24,11 +24,8 @@ export class AuthService {
     device: string | null;
     location: string | null;
   } {
-    // Get Request IP address
-    const ipAddress =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
-      req.socket.remoteAddress ||
-      null;
+    // Client IP, resolved by Express according to the "trust proxy" setting
+    const ipAddress = req.ip ?? null;
 
     // Get user agent (Device info)
     const userAgent = req.headers['user-agent'] || null;

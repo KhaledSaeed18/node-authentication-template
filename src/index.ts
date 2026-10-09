@@ -1,12 +1,15 @@
 import express, { type Express, type Request, type Response } from 'express';
 import cors from "cors";
+import helmet from 'helmet';
 import { ErrorMiddleware } from './middlewares/error.middleware.js';
 import AuthRouter from './api/auth/auth.routes.js';
-import { securityHeaders } from './middlewares/securityHeaders.middleware.js';
 import { env } from './config/env.js';
 import { httpLogger, logger } from './lib/logger.js';
 
 const app: Express = express();
+
+app.disable('x-powered-by');
+app.set('trust proxy', env.TRUST_PROXY);
 
 // CORS middleware
 app.use(
@@ -20,11 +23,18 @@ app.use(
 // Request logging
 app.use(httpLogger);
 
-// Security middleware
-app.use(securityHeaders);
+// Security headers, locked down further since this API only serves JSON
+app.use(
+    helmet({
+        contentSecurityPolicy: {
+            directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+        },
+        frameguard: { action: 'deny' },
+    })
+);
 
 // Body parser middleware
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 
 const port = env.PORT;
 const baseUrl = `${env.BASE_URL}/${env.API_VERSION}`;
