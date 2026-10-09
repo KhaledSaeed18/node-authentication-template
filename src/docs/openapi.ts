@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { createDocument, type ZodOpenApiOperationObject, type ZodOpenApiPathsObject } from 'zod-openapi';
 import { env } from '../config/env.js';
@@ -418,12 +419,15 @@ const paths: ZodOpenApiPathsObject = {
     },
 };
 
+// The same relative path works from src/docs and dist/docs
+const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
+
 export const createOpenApiDocument = () =>
     createDocument({
         openapi: '3.1.0',
         info: {
             title: `${env.APP_NAME} API`,
-            version: '2.0.0',
+            version,
             description:
                 'Authentication API: passkeys, email verification, password reset, TOTP 2FA with recovery codes, rotating refresh tokens and session management.',
         },
