@@ -96,8 +96,9 @@ src/
 │   │                 session, token, TOTP, verification and recovery code services
 │   ├── users/        profile and admin endpoints
 │   ├── health/       /health and /ready
-│   └── maintenance/  data retention job
-├── scripts/          standalone entry points (cleanup)
+│   ├── maintenance/  data retention job
+│   └── outbox/       transactional outbox: enqueue() and the worker
+├── scripts/          standalone entry points (cleanup, worker)
 └── shared/           errors, middlewares, utils and reusable validation
 ```
 
@@ -119,6 +120,26 @@ request
 - **Dependencies are injected.** `createApp(overrides)` builds everything; tests pass an in-memory mailer, and could pass any other replacement the same way. Each module has an `index.ts` that wires its own pieces.
 - **Configuration only comes from `env`** (`src/config/env.ts`), never from `process.env` directly. To add a variable: add it to the schema, to `.env.example` and to the configuration table in the README.
 - **Logging goes through pino.** Inside a request use `req.log`; elsewhere import `logger`. Never use `console`.
+- **Side effects go through the outbox.** Don't send emails (or call other services) from a request. Declare a job type in the module's `*.jobs.ts`, write it with `enqueue(tx, type, payload)` inside the same `$transaction` as the change, and handle it in the module's job handlers. Payloads must not contain secrets.
+
+### Background jobs
+
+```ts
+// src/modules/<module>/<module>.jobs.ts
+declare module '../outbox/outbox.js' {
+    interface OutboxJobs {
+        'email.welcome': { userId: string };
+    }
+}
+
+// in a service, together with the change
+await this.db.$transaction(async (tx) => {
+    const user = await tx.user.create({ data });
+    await enqueue(tx, 'email.welcome', { userId: user.id });
+});
+```
+
+Handlers receive the payload and `{ attempt }`. They should be idempotent where possible: a job is retried if the handler throws, so it may run more than once.
 
 ## Adding an Endpoint
 
@@ -168,7 +189,8 @@ Helpers in `tests/helpers.ts`:
 | --- | --- |
 | `resetDatabase()` | Truncates every table, call it in `beforeEach` |
 | `InMemoryMailer` | Pass to `createApp({ mailer })`; `mailer.lastCode(email)` returns the last emailed code |
-| `eventually(fn)` | Retries an assertion, for work done in the background (emails, notices) |
+| `createTestApp()` | App, in-memory mailer and outbox worker wired together; `await mailer.lastCode(email)` delivers pending jobs first |
+| `eventually(fn)` | Retries an assertion until it passes, for timing-based checks |
 | `strongPassword`, `API` | A password that passes validation, and the `/api/v1` prefix |
 
 What good tests look like here:

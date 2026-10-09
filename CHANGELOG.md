@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Transactional outbox: emails and security notices are written as jobs in the same database transaction as the change that triggers them, then delivered by a worker with retries and exponential backoff. The worker runs inside the API (`OUTBOX_WORKER_ENABLED`) or separately (`node dist/scripts/worker.js`).
+- Community files: code of conduct, security policy with private vulnerability reporting, support guide, issue forms and a detailed contributing guide.
+
+### Changed
+
+- Run `yarn db:deploy` for the new `OutboxMessage` table.
+- `forgot-password` and `resend-verification` now enqueue a job instead of sending directly.
+
 ## 2.0.0
 
 A full rework: dependencies brought up to date, the code reorganized into modules, and many security issues fixed. Several API and configuration changes are breaking.

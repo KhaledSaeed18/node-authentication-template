@@ -48,6 +48,7 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 
 **Operations**
 
+- Transactional outbox: emails and notices are committed with the change that caused them and delivered by a worker with retries (`FOR UPDATE SKIP LOCKED`, runs in-process or as separate workers)
 - Structured JSON logs (pino) with request ids and secret redaction
 - Liveness and readiness probes, graceful shutdown
 - OpenAPI 3.1 document and interactive API reference at `/docs`
@@ -122,6 +123,8 @@ All settings are environment variables, validated at startup: the server refuses
 | `APP_NAME` | `Node Auth` | Shown in emails and authenticator apps |
 | `API_DOCS_ENABLED` | on outside production | Serve `/docs` |
 | `LOGIN_HISTORY_RETENTION_DAYS` | `90` | Used by the cleanup job |
+| `OUTBOX_WORKER_ENABLED` | `true` | Run the outbox worker inside the API process |
+| `OUTBOX_POLL_INTERVAL_MS` | `1000` | How often the worker looks for due jobs |
 | `MAIL_TRANSPORT` | `console` | `console`, `smtp` or `gmail` |
 | `MAIL_FROM` | `Node Auth <no-reply@example.com>` | Sender address |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | | For `MAIL_TRANSPORT=smtp` (SES, Postmark, Mailgun, ...) |
@@ -230,8 +233,9 @@ Errors carry a stable, machine-readable `code`:
 │   │   │                           # sessions, tokens, TOTP, verification and recovery codes
 │   │   ├── users                   # profile and admin endpoints
 │   │   ├── health                  # liveness and readiness probes
-│   │   └── maintenance             # data retention job
-│   ├── scripts/cleanup.ts          # entry point for the cleanup job
+│   │   ├── maintenance             # data retention job
+│   │   └── outbox                  # transactional outbox and its worker
+│   ├── scripts                     # entry points for the cleanup job and a standalone worker
 │   ├── shared                      # errors, middlewares, crypto/password utils, validation
 │   └── generated/prisma            # generated Prisma client (gitignored)
 ├── tests                           # integration and unit tests
@@ -260,6 +264,7 @@ Emails are captured by an in-memory mailer, so tests read the codes directly.
 - Run `node_modules/.bin/prisma migrate deploy` from the same image as a release step before starting new instances.
 - Set `NODE_ENV=production`, the required secrets, `TRUST_PROXY` when behind a load balancer and `REDIS_URL` when running more than one instance.
 - Schedule `node dist/scripts/cleanup.js`, for example daily.
+- Emails are delivered by the outbox worker, which runs inside each API instance by default. To scale it separately, set `OUTBOX_WORKER_ENABLED=false` on the API and run `node dist/scripts/worker.js` as its own deployment; any number of workers can run at once.
 - Point the readiness probe at `/ready` and the liveness probe at `/health`. On `SIGTERM` the server reports not ready, finishes in-flight requests and closes its connections.
 
 ## Upgrading from 1.x
