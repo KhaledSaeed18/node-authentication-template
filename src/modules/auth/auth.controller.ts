@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { currentUser } from '../../shared/middlewares/authenticate.js';
 import { sendSuccess } from '../../shared/utils/response.js';
+import type { PaginationQuery } from '../../shared/validation/pagination.js';
 import type { AuthService, RequestContext } from './auth.service.js';
 
 const requestContext = (req: Request): RequestContext => ({
@@ -51,8 +52,8 @@ export class AuthController {
     };
 
     getLoginHistory = async (req: Request, res: Response) => {
-        const loginHistory = await this.authService.getLoginHistory(currentUser(req).userId);
-        sendSuccess(res, 200, 'Login history fetched successfully', { loginHistory });
+        const page = await this.authService.getLoginHistory(currentUser(req).userId, req.query as unknown as PaginationQuery);
+        sendSuccess(res, 200, 'Login history fetched successfully', { loginHistory: page.items, nextCursor: page.nextCursor });
     };
 
     refreshAccessToken = async (req: Request, res: Response) => {

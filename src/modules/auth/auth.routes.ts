@@ -1,5 +1,6 @@
 import { type RequestHandler, Router } from 'express';
 import { validate } from '../../shared/middlewares/validate.js';
+import { paginationQuerySchema } from '../../shared/validation/pagination.js';
 import type { AuthController } from './auth.controller.js';
 import {
     changePasswordLimiter,
@@ -39,7 +40,13 @@ export const createAuthRouter = (controller: AuthController, authenticate: Reque
     router.post('/signup', signupLimiter, validate(signupSchema), controller.signup);
     router.post('/signin', signinLimiter, validate(signinSchema), controller.signin);
     router.post('/refresh-token', refreshTokenLimiter, validate(refreshTokenSchema), controller.refreshAccessToken);
-    router.get('/login-history', loginHistoryLimiter, authenticate, controller.getLoginHistory);
+    router.get(
+        '/login-history',
+        loginHistoryLimiter,
+        authenticate,
+        validate(paginationQuerySchema, 'query'),
+        controller.getLoginHistory
+    );
 
     router.post('/logout', sessionLimiter, authenticate, controller.logout);
     router.post('/logout-all', sessionLimiter, authenticate, controller.logoutAll);

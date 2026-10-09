@@ -191,3 +191,27 @@ describe('password changes end sessions', () => {
         await refresh(session.refreshToken).expect(401);
     });
 });
+
+describe('login history pagination', () => {
+    it('pages through attempts newest first with a cursor', async () => {
+        for (let i = 0; i < 4; i++) await request(app).post(`${auth}/signin`).send({ email, password: 'Wr0ng$Password' });
+        const { accessToken } = await signin();
+
+        const first = await loginHistory(accessToken).query({ limit: 3 }).expect(200);
+        expect(first.body.data.loginHistory).toHaveLength(3);
+        expect(first.body.data.loginHistory[0].successful).toBe(true);
+        expect(first.body.data.nextCursor).toEqual(expect.any(String));
+
+        const second = await loginHistory(accessToken).query({ limit: 3, cursor: first.body.data.nextCursor }).expect(200);
+        expect(second.body.data.loginHistory).toHaveLength(2);
+        expect(second.body.data.nextCursor).toBeNull();
+
+        const ids = [...first.body.data.loginHistory, ...second.body.data.loginHistory].map((h: { id: string }) => h.id);
+        expect(new Set(ids).size).toBe(5);
+    });
+
+    it('rejects an out of range limit', async () => {
+        const { accessToken } = await signin();
+        await loginHistory(accessToken).query({ limit: 1000 }).expect(400);
+    });
+});

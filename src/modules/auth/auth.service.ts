@@ -13,6 +13,7 @@ import {
 import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
 import { detectDevice } from '../../shared/utils/user-agent.js';
+import { type PaginationQuery, toPage } from '../../shared/validation/pagination.js';
 import type {
     ChangePasswordInput,
     ResetPasswordInput,
@@ -228,11 +229,16 @@ export class AuthService {
         }
     }
 
-    async getLoginHistory(userId: string) {
-        return this.db.loginHistory.findMany({
+    // Newest first, cursor based so deep pages stay fast
+    async getLoginHistory(userId: string, { limit, cursor }: PaginationQuery) {
+        const rows = await this.db.loginHistory.findMany({
             where: { userId },
-            orderBy: { loginTime: 'desc' },
+            orderBy: [{ loginTime: 'desc' }, { id: 'desc' }],
+            take: limit + 1,
+            ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+            select: { id: true, ipAddress: true, userAgent: true, device: true, location: true, loginTime: true, successful: true },
         });
+        return toPage(rows, limit);
     }
 
     // Rotates the refresh token and issues a new access token with the user's current role
