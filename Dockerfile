@@ -1,6 +1,5 @@
-# syntax=docker/dockerfile:1
-
-FROM node:24-alpine AS base
+# Official Node image, pulled from the AWS mirror of Docker Hub's library (no anonymous rate limit)
+FROM public.ecr.aws/docker/library/node:24-alpine AS base
 WORKDIR /app
 
 # All dependencies; postinstall generates the Prisma client
