@@ -136,23 +136,21 @@ const disable2FASchema = z.object({
         .regex(/^\d+$/, "Token must contain only digits"),
 });
 
-// Validation middleware
-const validate = (schema: z.ZodType) => (req: Request, res: Response, next: NextFunction) => {
-    try {
-        schema.parse(req.body);
-        next();
-    } catch (error) {
-        if (error instanceof z.ZodError) {
-            const validationErrors = error.issues.map(err => ({
-                field: err.path.join('.'),
-                message: err.message
-            }));
+// Validation middleware, replaces req.body with the parsed (trimmed, stripped) data
+const validate = (schema: z.ZodType) => (req: Request, _res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.body);
 
-            const errorMessage = "Validation failed. Please check your input.";
-            return next(errorHandler(400, errorMessage, { validationErrors }));
-        }
-        next(errorHandler(400, "Invalid request data"));
+    if (!result.success) {
+        const validationErrors = result.error.issues.map(issue => ({
+            field: issue.path.join('.'),
+            message: issue.message
+        }));
+
+        return next(errorHandler(400, "Validation failed. Please check your input.", { validationErrors }));
     }
+
+    req.body = result.data;
+    next();
 };
 
 export const validateSignup = validate(signupSchema);
