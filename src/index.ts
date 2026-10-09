@@ -46,6 +46,10 @@ app.use((_req: Request, res: Response) => {
 // Error handling middleware
 app.use(ErrorMiddleware.handleError);
 
-app.listen(port, () => {
+app.listen(port, (error) => {
+    if (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
     console.log(`Server is running on: http://localhost:${port}`);
 });
