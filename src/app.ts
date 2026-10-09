@@ -10,6 +10,7 @@ import { createMailer, type Mailer } from './mail/mailer.js';
 import { createAuthModule } from './modules/auth/index.js';
 import { createKeysRouter } from './modules/keys/keys.routes.js';
 import { SigningKeyStore } from './modules/keys/signing-key.store.js';
+import { type BreachedPasswordChecker, PwnedPasswordsChecker, skipBreachCheck } from './shared/utils/breached-passwords.js';
 import { durationToMs } from './shared/utils/duration.js';
 import { OutboxWorker } from './modules/outbox/outbox.worker.js';
 import { createHealthRouter, type HealthState } from './modules/health/health.routes.js';
@@ -22,6 +23,7 @@ export interface AppDependencies {
     mailer: Mailer;
     health: HealthState;
     signingKeys: SigningKeyStore;
+    breachedPasswords: BreachedPasswordChecker;
 }
 
 export interface Application {
@@ -38,6 +40,7 @@ export const buildApplication = (overrides: Partial<AppDependencies> = {}): Appl
         db,
         mailer: overrides.mailer ?? createMailer(env),
         health: overrides.health ?? { shuttingDown: false },
+        breachedPasswords: overrides.breachedPasswords ?? (env.PASSWORD_BREACH_CHECK ? new PwnedPasswordsChecker() : skipBreachCheck),
         signingKeys:
             overrides.signingKeys ??
             new SigningKeyStore(db, {

@@ -11,19 +11,29 @@ import { SessionService } from './session.service.js';
 import { VerificationCodeService } from './verification-code.service.js';
 import { AccessTokens } from './tokens.js';
 import type { SigningKeyStore } from '../keys/signing-key.store.js';
+import type { BreachedPasswordChecker } from '../../shared/utils/breached-passwords.js';
 
 export interface AuthModuleDependencies {
     db: PrismaClient;
     mailer: Mailer;
     signingKeys: SigningKeyStore;
+    breachedPasswords: BreachedPasswordChecker;
 }
 
 // Composition root of the auth module
-export const createAuthModule = ({ db, mailer, signingKeys }: AuthModuleDependencies) => {
+export const createAuthModule = ({ db, mailer, signingKeys, breachedPasswords }: AuthModuleDependencies) => {
     const sessions = new SessionService(db);
     const codes = new VerificationCodeService(db);
     const accessTokens = new AccessTokens(signingKeys);
-    const service = new AuthService(db, codes, sessions, new RecoveryCodeService(db), new PasskeyService(db), accessTokens);
+    const service = new AuthService(
+        db,
+        codes,
+        sessions,
+        new RecoveryCodeService(db),
+        new PasskeyService(db),
+        accessTokens,
+        breachedPasswords
+    );
     const authenticate = createAuthenticate(accessTokens, sessions);
 
     return {

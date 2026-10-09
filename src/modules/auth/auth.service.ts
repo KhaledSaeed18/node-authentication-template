@@ -6,7 +6,9 @@ import {
     NotFoundError,
     TooManyRequestsError,
     UnauthorizedError,
+    ValidationError,
 } from '../../shared/errors/app-error.js';
+import type { BreachedPasswordChecker } from '../../shared/utils/breached-passwords.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
 import { describeUserAgent, detectDevice } from '../../shared/utils/user-agent.js';
 import { recordSecurityEvent } from '../audit/security-events.js';
@@ -61,8 +63,18 @@ export class AuthService {
         private readonly sessions: SessionService,
         private readonly recoveryCodes: RecoveryCodeService,
         private readonly passkeys: PasskeyService,
-        private readonly accessTokens: AccessTokens
+        private readonly accessTokens: AccessTokens,
+        private readonly breachedPasswords: BreachedPasswordChecker
     ) {}
+
+    // NIST SP 800-63B: refuse passwords known from data breaches
+    private async assertNotBreached(password: string, field: string) {
+        if (await this.breachedPasswords.isBreached(password)) {
+            throw new ValidationError([
+                { field, message: 'This password has appeared in a data breach. Please choose a different one.' },
+            ]);
+        }
+    }
 
     // Failed sign-ins within the lockout window, counted since the last successful one
     private async recentFailures(userId: string): Promise<number> {
@@ -229,6 +241,7 @@ export class AuthService {
         if (existingUser) {
             throw new ConflictError('User with this email already exists', 'EMAIL_TAKEN');
         }
+        await this.assertNotBreached(password, 'password');
 
         const passwordHash = await hashPassword(password);
 
@@ -352,6 +365,9 @@ export class AuthService {
     async resetPassword({ email, code, newPassword }: ResetPasswordInput, context?: RequestContext): Promise<void> {
         const user = await this.db.user.findUnique({ where: { email } });
 
+        // Before consuming the code, so a refused password doesn't burn it
+        await this.assertNotBreached(newPassword, 'newPassword');
+
         if (!user || !(await this.codes.consume(user.id, 'PASSWORD_RESET', code))) {
             throw new BadRequestError('Invalid or expired reset code', 'INVALID_CODE');
         }
@@ -379,6 +395,7 @@ export class AuthService {
         if (!(await this.checkPassword(user, currentPassword))) {
             throw new BadRequestError('Current password is incorrect', 'INVALID_PASSWORD');
         }
+        await this.assertNotBreached(newPassword, 'newPassword');
 
         const passwordHash = await hashPassword(newPassword);
         await this.db.$transaction(async (tx) => {

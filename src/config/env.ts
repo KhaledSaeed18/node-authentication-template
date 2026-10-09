@@ -55,6 +55,8 @@ const envSchema = z.object({
         }),
 
     APP_NAME: z.string().default('Node Auth'),
+    // Reject new passwords found in known data breaches (Have I Been Pwned, k-anonymity)
+    PASSWORD_BREACH_CHECK: z.stringbool().default(true),
     // How long login history is kept by the cleanup job
     LOGIN_HISTORY_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
     // How long the account activity (security events) is kept

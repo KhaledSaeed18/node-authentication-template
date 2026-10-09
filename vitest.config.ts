@@ -17,6 +17,8 @@ export default defineConfig({
             ENCRYPTION_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
             RATE_LIMIT_ENABLED: 'false',
             OUTBOX_WORKER_ENABLED: 'false',
+            // Tests inject their own checker instead of calling the real API
+            PASSWORD_BREACH_CHECK: 'false',
             // The OpenID Connect tests run a real server on this port
             OIDC_ISSUER: 'http://localhost:45871',
         },
