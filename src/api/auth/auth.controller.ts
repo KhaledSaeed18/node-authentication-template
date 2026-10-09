@@ -237,7 +237,6 @@ export default class AuthController {
   // Setup 2FA controller
   async setup2FA(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      console.log(req.user);
       const userId = req.user?.userId;
 
       if (!userId) {
