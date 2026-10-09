@@ -13,6 +13,7 @@ import {
 import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../../shared/utils/password.js';
 import type {
+    ChangePasswordInput,
     ResetPasswordInput,
     Signin2FAInput,
     SigninInput,
@@ -278,6 +279,25 @@ export class AuthService {
             where: { id: user.id },
             data: { password: await hashPassword(newPassword) },
         });
+
+        // Whoever knew the old password shouldn't stay signed in
+        await this.sessions.revokeAll(user.id);
+    }
+
+    // Requires the current password; keeps the current session and ends all others
+    async changePassword(
+        userId: string,
+        currentSessionId: string,
+        { currentPassword, newPassword }: ChangePasswordInput
+    ): Promise<void> {
+        const user = await this.findUserById(userId);
+
+        if (!(await this.checkPassword(user, currentPassword))) {
+            throw new BadRequestError('Current password is incorrect', 'INVALID_PASSWORD');
+        }
+
+        await this.db.user.update({ where: { id: userId }, data: { password: await hashPassword(newPassword) } });
+        await this.sessions.revokeAll(userId, currentSessionId);
     }
 
     async setup2FA(userId: string): Promise<{ secret: string; qrCode: string }> {

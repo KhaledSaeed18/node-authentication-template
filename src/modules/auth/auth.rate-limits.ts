@@ -29,3 +29,4 @@ export const setup2FALimiter = createLimiter(3, "Too many 2FA setup attempts, pl
 export const verify2FALimiter = createLimiter(5, "Too many 2FA verification attempts, please try again later");
 export const disable2FALimiter = createLimiter(3, "Too many 2FA disable attempts, please try again later");
 export const sessionLimiter = createLimiter(50, "Too many requests, please try again later");
+export const changePasswordLimiter = createLimiter(5, "Too many password change attempts, please try again later");

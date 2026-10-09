@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
 import { hashPassword } from '../src/shared/utils/password.js';
-import { API, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
+import { API, eventually, InMemoryMailer, resetDatabase, strongPassword } from './helpers.js';
 
 const app = createApp({ mailer: new InMemoryMailer() });
 const auth = `${API}/auth`;
@@ -135,5 +135,59 @@ describe('logout and session management', () => {
 
         await request(app).delete(`${auth}/sessions/${phoneSessionId}`).set(bearer(sam.accessToken)).expect(404);
         await loginHistory(phone.accessToken).expect(200);
+    });
+});
+
+describe('password changes end sessions', () => {
+    const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+    const newPassword = 'An0ther$ecretPass';
+
+    it('change-password keeps the current session and signs out the others', async () => {
+        const laptop = await signin();
+        const phone = await signin();
+
+        await request(app)
+            .post(`${auth}/change-password`)
+            .set(bearer(phone.accessToken))
+            .send({ currentPassword: strongPassword, newPassword })
+            .expect(200);
+
+        await loginHistory(phone.accessToken).expect(200);
+        await loginHistory(laptop.accessToken).expect(401);
+        await request(app).post(`${auth}/signin`).send({ email, password: newPassword }).expect(200);
+    });
+
+    it('change-password requires the right current password', async () => {
+        const { accessToken } = await signin();
+
+        const res = await request(app)
+            .post(`${auth}/change-password`)
+            .set(bearer(accessToken))
+            .send({ currentPassword: 'Wr0ng$Password', newPassword })
+            .expect(400);
+        expect(res.body.code).toBe('INVALID_PASSWORD');
+    });
+
+    it('change-password rejects reusing the same password', async () => {
+        const { accessToken } = await signin();
+
+        await request(app)
+            .post(`${auth}/change-password`)
+            .set(bearer(accessToken))
+            .send({ currentPassword: strongPassword, newPassword: strongPassword })
+            .expect(400);
+    });
+
+    it('password reset signs out every session', async () => {
+        const mailer = new InMemoryMailer();
+        const resetApp = createApp({ mailer });
+        const session = await signin();
+
+        await request(resetApp).post(`${auth}/forgot-password`).send({ email }).expect(200);
+        const code = await eventually(() => mailer.lastCode(email));
+        await request(resetApp).post(`${auth}/reset-password`).send({ email, code, newPassword }).expect(200);
+
+        await loginHistory(session.accessToken).expect(401);
+        await refresh(session.refreshToken).expect(401);
     });
 });

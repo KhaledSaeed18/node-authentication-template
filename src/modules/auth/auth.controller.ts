@@ -86,6 +86,12 @@ export class AuthController {
         sendSuccess(res, 200, 'Password reset successful');
     };
 
+    changePassword = async (req: Request, res: Response) => {
+        const { userId, sessionId } = currentUser(req);
+        await this.authService.changePassword(userId, sessionId, req.body);
+        sendSuccess(res, 200, 'Password changed successfully. Other sessions have been signed out.');
+    };
+
     setup2FA = async (req: Request, res: Response) => {
         const data = await this.authService.setup2FA(currentUser(req).userId);
         sendSuccess(res, 200, '2FA setup initiated', data);

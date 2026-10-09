@@ -11,6 +11,20 @@ const isAllowedDomain = (email: string) => {
     return !domain || !BLOCKED_DOMAINS.includes(domain);
 };
 
+// Password rules for every new password (signup, reset, change)
+const passwordField = z
+    .string()
+    .min(8, "Password must be at least 8 characters long")
+    .max(64, "Password cannot exceed 64 characters")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character")
+    .refine(
+        (password) => !COMMON_PASSWORDS.includes(password),
+        "This password is too common. Please choose a more unique password."
+    );
+
 // Signup schema
 export const signupSchema = z.object({
     firstName: z.string()
@@ -28,17 +42,7 @@ export const signupSchema = z.object({
     email: emailField("Invalid email format")
         .refine(isAllowedDomain, "This email domain is not allowed. Please use a different email address"),
 
-    password: z.string()
-        .min(8, "Password must be at least 8 characters long")
-        .max(64, "Password cannot exceed 64 characters")
-        .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-        .regex(/[0-9]/, "Password must contain at least one number")
-        .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character")
-        .refine(
-            (password) => !COMMON_PASSWORDS.includes(password),
-            "This password is too common. Please choose a more unique password."
-        ),
+    password: passwordField,
 });
 
 // Signin schema
@@ -89,17 +93,7 @@ export const resetPasswordSchema = z.object({
         .length(6, "Reset code must be 6 digits")
         .regex(/^\d{6}$/, "Reset code must contain only digits"),
 
-    newPassword: z.string()
-        .min(8, "New password must be at least 8 characters long")
-        .max(64, "New password cannot exceed 64 characters")
-        .regex(/[a-z]/, "New password must contain at least one lowercase letter")
-        .regex(/[A-Z]/, "New password must contain at least one uppercase letter")
-        .regex(/[0-9]/, "New password must contain at least one number")
-        .regex(/[^a-zA-Z0-9]/, "New password must contain at least one special character")
-        .refine(
-            (password) => !COMMON_PASSWORDS.includes(password),
-            "This password is too common. Please choose a more unique password."
-        )
+    newPassword: passwordField,
 });
 
 // Verify & Enable 2FA schema
@@ -131,11 +125,22 @@ export const disable2FASchema = z.object({
         .regex(/^\d+$/, "Token must contain only digits"),
 });
 
+export const changePasswordSchema = z
+    .object({
+        currentPassword: z.string().min(1, "Current password is required").max(64),
+        newPassword: passwordField,
+    })
+    .refine((data) => data.currentPassword !== data.newPassword, {
+        path: ['newPassword'],
+        message: 'New password must be different from the current one',
+    });
+
 export const sessionIdParamsSchema = z.object({
     sessionId: z.string().trim().min(1).max(64),
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type SigninInput = z.infer<typeof signinSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;

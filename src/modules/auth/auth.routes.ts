@@ -3,6 +3,7 @@ import { sanitizeRequestBody } from '../../shared/middlewares/sanitize-body.js';
 import { validate } from '../../shared/middlewares/validate.js';
 import type { AuthController } from './auth.controller.js';
 import {
+    changePasswordLimiter,
     disable2FALimiter,
     forgotPasswordLimiter,
     loginHistoryLimiter,
@@ -18,6 +19,7 @@ import {
     verifyEmailLimiter,
 } from './auth.rate-limits.js';
 import {
+    changePasswordSchema,
     disable2FASchema,
     forgotPasswordSchema,
     refreshTokenSchema,
@@ -61,6 +63,13 @@ export const createAuthRouter = (controller: AuthController, authenticate: Reque
 
     router.post('/forgot-password', forgotPasswordLimiter, sanitizeRequestBody, validate(forgotPasswordSchema), controller.forgotPassword);
     router.post('/reset-password', resetPasswordLimiter, sanitizeRequestBody, validate(resetPasswordSchema), controller.resetPassword);
+    router.post(
+        '/change-password',
+        changePasswordLimiter,
+        authenticate,
+        validate(changePasswordSchema),
+        controller.changePassword
+    );
 
     router.post('/2fa/setup', authenticate, setup2FALimiter, controller.setup2FA);
     router.post('/2fa/verify', authenticate, verify2FALimiter, sanitizeRequestBody, validate(verify2FASchema), controller.verify2FA);
