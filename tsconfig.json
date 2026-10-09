@@ -6,13 +6,12 @@
     "moduleResolution": "nodenext",
     "verbatimModuleSyntax": true,
     "types": ["node"],
-    "rootDir": "./src",
-    "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true
   },
-  "include": ["src/**/*"],
+  "include": ["src", "tests", "prisma.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -20,6 +20,7 @@ const envSchema = z.object({
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
 
     CORS_ORIGINS: csv.default(['http://localhost:3000']),
+    RATE_LIMIT_ENABLED: z.stringbool().default(true),
     // Express "trust proxy" setting: false, true, a hop count, or a list of IPs/subnets
     TRUST_PROXY: z
         .string()
