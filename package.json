@@ -1,6 +1,6 @@
 {
   "name": "node-authentication-template",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Secure authentication API for Node.js: email verification, TOTP 2FA with recovery codes, rotating refresh tokens, session management, Argon2id, Prisma and PostgreSQL",
   "private": true,
   "type": "module",

@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 3.2.0
+
+Account self-service (email change, data export, deletion), breached password screening, and a slimmer API image with a separate migration image.
 
 ### Added
 
