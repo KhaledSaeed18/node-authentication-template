@@ -83,7 +83,7 @@ describe('signin and tokens', () => {
         await signin(email, 'Wr0ng$Password').expect(401);
     });
 
-    it('issues a new access token from a refresh token', async () => {
+    it('issues new tokens from a refresh token', async () => {
         const { email, password } = await createVerifiedUser();
         const { body } = await signin(email, password).expect(200);
 
@@ -92,6 +92,7 @@ describe('signin and tokens', () => {
             .send({ refreshToken: body.data.refreshToken })
             .expect(200);
         expect(res.body.data.accessToken).toEqual(expect.any(String));
+        expect(res.body.data.refreshToken).not.toBe(body.data.refreshToken);
     });
 
     it('rejects an invalid refresh token with 401', async () => {

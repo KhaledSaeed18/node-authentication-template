@@ -19,7 +19,8 @@ import type {
     SignupInput,
     VerifyEmailInput,
 } from './auth.schemas.js';
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from './tokens.js';
+import type { SessionService } from './session.service.js';
+import { signAccessToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, verifyTOTP } from './totp.js';
 import { CODE_TTL_MINUTES, VerificationCodeService } from './verification-code.service.js';
 
@@ -64,7 +65,8 @@ export class AuthService {
     constructor(
         private readonly db: PrismaClient,
         private readonly mailer: Mailer,
-        private readonly codes: VerificationCodeService
+        private readonly codes: VerificationCodeService,
+        private readonly sessions: SessionService
     ) {}
 
     private async sendVerificationCode(user: User) {
@@ -127,10 +129,12 @@ export class AuthService {
         });
     }
 
-    private issueTokens(user: User) {
+    // Starts a new session: a short-lived access token plus a rotating refresh token
+    private async startSession(user: User, context: RequestContext) {
+        const { sessionId, refreshToken } = await this.sessions.create(user.id, context);
         return {
-            accessToken: signAccessToken({ userId: user.id, role: user.role }),
-            refreshToken: signRefreshToken({ userId: user.id, role: user.role }),
+            accessToken: signAccessToken({ userId: user.id, role: user.role, sessionId }),
+            refreshToken,
         };
     }
 
@@ -185,7 +189,7 @@ export class AuthService {
 
         await this.recordLoginAttempt(user.id, context, true);
 
-        return { requiresOtp: false, user: toPublicUser(user), ...this.issueTokens(user) };
+        return { requiresOtp: false, user: toPublicUser(user), ...(await this.startSession(user, context)) };
     }
 
     async getLoginHistory(userId: string) {
@@ -195,8 +199,13 @@ export class AuthService {
         });
     }
 
-    refreshAccessToken(refreshToken: string): string {
-        return signAccessToken(verifyRefreshToken(refreshToken));
+    // Rotates the refresh token and issues a new access token with the user's current role
+    async refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+        const { session, refreshToken: nextRefreshToken } = await this.sessions.rotate(refreshToken);
+        return {
+            accessToken: signAccessToken({ userId: session.userId, role: session.user.role, sessionId: session.id }),
+            refreshToken: nextRefreshToken,
+        };
     }
 
     // Unknown email, already verified and wrong code all get the same answer,
@@ -310,7 +319,7 @@ export class AuthService {
 
         await this.recordLoginAttempt(user.id, context, true);
 
-        return { user: toPublicUser(user), ...this.issueTokens(user) };
+        return { user: toPublicUser(user), ...(await this.startSession(user, context)) };
     }
 
     async disable2FA(userId: string, token: string): Promise<void> {

@@ -45,7 +45,6 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://postgres:postgres@db:5432/auth
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (at least 32 characters)}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET (at least 32 characters)}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       MAIL_TRANSPORT: smtp
       SMTP_HOST: mailpit

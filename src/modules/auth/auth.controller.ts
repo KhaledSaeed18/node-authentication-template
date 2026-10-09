@@ -41,8 +41,8 @@ export class AuthController {
     };
 
     refreshAccessToken = async (req: Request, res: Response) => {
-        const accessToken = this.authService.refreshAccessToken(req.body.refreshToken);
-        sendSuccess(res, 200, 'Access token refreshed successfully', { accessToken });
+        const tokens = await this.authService.refresh(req.body.refreshToken);
+        sendSuccess(res, 200, 'Tokens refreshed successfully', tokens);
     };
 
     verifyEmail = async (req: Request, res: Response) => {

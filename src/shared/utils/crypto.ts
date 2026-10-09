@@ -1,4 +1,4 @@
-import { createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { env } from '../../config/env.js';
 
 const masterKey = Buffer.from(env.ENCRYPTION_KEY, 'base64');
@@ -19,3 +19,7 @@ export const safeEqual = (a: string, b: string): boolean => {
 
 // URL-safe random token
 export const randomToken = (bytes = 32): string => randomBytes(bytes).toString('base64url');
+
+// Fine for high-entropy random tokens; use hmacSha256 for low-entropy values like codes
+export const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
+

@@ -1,5 +1,4 @@
-import { Router } from 'express';
-import { authenticate } from '../../shared/middlewares/authenticate.js';
+import { type RequestHandler, Router } from 'express';
 import { sanitizeRequestBody } from '../../shared/middlewares/sanitize-body.js';
 import { validate } from '../../shared/middlewares/validate.js';
 import type { AuthController } from './auth.controller.js';
@@ -30,7 +29,7 @@ import {
     verifyEmailSchema,
 } from './auth.schemas.js';
 
-export const createAuthRouter = (controller: AuthController): Router => {
+export const createAuthRouter = (controller: AuthController, authenticate: RequestHandler): Router => {
     const router = Router();
 
     router.post('/signup', signupLimiter, sanitizeRequestBody, validate(signupSchema), controller.signup);

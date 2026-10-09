@@ -6,12 +6,13 @@ import { UnauthorizedError } from '../../shared/errors/app-error.js';
 export interface TokenClaims {
     userId: string;
     role: Role;
+    sessionId: string;
 }
 
 type Expiry = NonNullable<jwt.SignOptions['expiresIn']>;
 
 const sign = (claims: TokenClaims, secret: string, expiresIn: string) =>
-    jwt.sign({ role: claims.role }, secret, {
+    jwt.sign({ role: claims.role, sid: claims.sessionId }, secret, {
         algorithm: 'HS256',
         subject: claims.userId,
         issuer: env.JWT_ISSUER,
@@ -19,6 +20,7 @@ const sign = (claims: TokenClaims, secret: string, expiresIn: string) =>
         expiresIn: expiresIn as Expiry,
     });
 
+// Access tokens are short-lived JWTs; refresh tokens are opaque (see SessionService).
 // Pins the algorithm and checks issuer/audience, so tokens signed for something else
 // (or with "alg": "none") are rejected
 const verify = (token: string, secret: string): TokenClaims => {
@@ -29,8 +31,10 @@ const verify = (token: string, secret: string): TokenClaims => {
             audience: env.JWT_AUDIENCE,
         }) as jwt.JwtPayload;
 
-        if (!payload.sub || typeof payload.role !== 'string') throw new Error('Missing claims');
-        return { userId: payload.sub, role: payload.role as Role };
+        if (!payload.sub || typeof payload.role !== 'string' || typeof payload.sid !== 'string') {
+            throw new Error('Missing claims');
+        }
+        return { userId: payload.sub, role: payload.role as Role, sessionId: payload.sid };
     } catch (error) {
         if (error instanceof jwt.TokenExpiredError) {
             throw new UnauthorizedError('Token has expired', 'TOKEN_EXPIRED');
@@ -41,6 +45,3 @@ const verify = (token: string, secret: string): TokenClaims => {
 
 export const signAccessToken = (claims: TokenClaims) => sign(claims, env.JWT_SECRET, env.ACCESS_TOKEN_TTL);
 export const verifyAccessToken = (token: string) => verify(token, env.JWT_SECRET);
-
-export const signRefreshToken = (claims: TokenClaims) => sign(claims, env.JWT_REFRESH_SECRET, env.REFRESH_TOKEN_TTL);
-export const verifyRefreshToken = (token: string) => verify(token, env.JWT_REFRESH_SECRET);

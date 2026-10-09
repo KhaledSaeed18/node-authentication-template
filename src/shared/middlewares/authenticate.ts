@@ -11,21 +11,25 @@ declare module 'express' {
     }
 }
 
-// Requires a valid access token in the Authorization header
-export const authenticate = (req: Request, _res: Response, next: NextFunction) => {
-    const [scheme, token] = req.headers.authorization?.split(' ') ?? [];
+// Requires a valid access token whose session hasn't been revoked (logout, password
+// reset, ...). The session lookup makes revocation take effect immediately.
+export const createAuthenticate =
+    (sessions: { isActive(sessionId: string): Promise<boolean> }) =>
+    async (req: Request, _res: Response, next: NextFunction) => {
+        const [scheme, token] = req.headers.authorization?.split(' ') ?? [];
 
-    if (scheme !== 'Bearer' || !token) {
-        return next(new UnauthorizedError('Missing or malformed access token', 'MISSING_TOKEN'));
-    }
+        if (scheme !== 'Bearer' || !token) {
+            throw new UnauthorizedError('Missing or malformed access token', 'MISSING_TOKEN');
+        }
 
-    try {
-        req.user = verifyAccessToken(token);
+        const claims = verifyAccessToken(token);
+        if (!(await sessions.isActive(claims.sessionId))) {
+            throw new UnauthorizedError('Session has ended, please sign in again', 'SESSION_REVOKED');
+        }
+
+        req.user = claims;
         next();
-    } catch (error) {
-        next(error);
-    }
-};
+    };
 
 // Requires the authenticated user to have one of the given roles (use after authenticate)
 export const requireRole =

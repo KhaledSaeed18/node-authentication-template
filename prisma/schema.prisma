@@ -22,6 +22,7 @@ model User {
 
   LoginHistory      LoginHistory[]
   verificationCodes VerificationCode[]
+  sessions          Session[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -69,5 +70,25 @@ model VerificationCode {
 
   // At most one active code per user and purpose
   @@unique([userId, purpose])
+}
+
+// A signed-in device. Its refresh token is opaque, stored hashed, and rotated on every use.
+model Session {
+  id                String    @id @default(cuid())
+  userId            String
+  tokenHash         String
+  // Hash of the token that was rotated out, used to detect refresh token reuse
+  previousTokenHash String?
+  rotatedAt         DateTime?
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+  lastUsedAt        DateTime  @default(now())
+  expiresAt         DateTime
+  revokedAt         DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 

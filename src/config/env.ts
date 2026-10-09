@@ -15,7 +15,6 @@ const envSchema = z.object({
     DATABASE_URL: z.url(),
 
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-    JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
     JWT_ISSUER: z.string().default('node-auth'),
     JWT_AUDIENCE: z.string().default('node-auth-api'),
     // Lifetimes like 15m, 12h, 7d
