@@ -131,6 +131,10 @@ export const disable2FASchema = z.object({
         .regex(/^\d+$/, "Token must contain only digits"),
 });
 
+export const sessionIdParamsSchema = z.object({
+    sessionId: z.string().trim().min(1).max(64),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type SigninInput = z.infer<typeof signinSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;

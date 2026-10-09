@@ -81,3 +81,59 @@ describe('refresh token rotation', () => {
         expect(await prisma.session.count()).toBe(2);
     });
 });
+
+describe('logout and session management', () => {
+    const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+    it('logout ends only the current session', async () => {
+        const laptop = await signin();
+        const phone = await signin();
+
+        await request(app).post(`${auth}/logout`).set(bearer(laptop.accessToken)).expect(200);
+
+        await loginHistory(laptop.accessToken).expect(401);
+        await refresh(laptop.refreshToken).expect(401);
+        await loginHistory(phone.accessToken).expect(200);
+    });
+
+    it('logout-all ends every session', async () => {
+        const laptop = await signin();
+        const phone = await signin();
+
+        const res = await request(app).post(`${auth}/logout-all`).set(bearer(phone.accessToken)).expect(200);
+        expect(res.body.data.revokedSessions).toBe(2);
+
+        await loginHistory(laptop.accessToken).expect(401);
+        await loginHistory(phone.accessToken).expect(401);
+    });
+
+    it('lists active sessions and marks the current one', async () => {
+        await signin();
+        const current = await signin();
+
+        const res = await request(app).get(`${auth}/sessions`).set(bearer(current.accessToken)).expect(200);
+        const sessions = res.body.data.sessions;
+
+        expect(sessions).toHaveLength(2);
+        expect(sessions.filter((s: { current: boolean }) => s.current)).toHaveLength(1);
+        expect(sessions[0]).not.toHaveProperty('tokenHash');
+    });
+
+    it('revokes a single session by id, but not another user\'s', async () => {
+        const laptop = await signin();
+        const phone = await signin();
+        const laptopSessionId = laptop.refreshToken.split('.')[0];
+
+        await request(app).delete(`${auth}/sessions/${laptopSessionId}`).set(bearer(phone.accessToken)).expect(200);
+        await loginHistory(laptop.accessToken).expect(401);
+
+        await prisma.user.create({
+            data: { firstName: 'Sam', lastName: 'Roe', email: 'sam@acme.io', password: await hashPassword(strongPassword), isVerified: true },
+        });
+        const sam = (await request(app).post(`${auth}/signin`).send({ email: 'sam@acme.io', password: strongPassword })).body.data;
+        const phoneSessionId = phone.refreshToken.split('.')[0];
+
+        await request(app).delete(`${auth}/sessions/${phoneSessionId}`).set(bearer(sam.accessToken)).expect(404);
+        await loginHistory(phone.accessToken).expect(200);
+    });
+});

@@ -192,6 +192,25 @@ export class AuthService {
         return { requiresOtp: false, user: toPublicUser(user), ...(await this.startSession(user, context)) };
     }
 
+    async logout(sessionId: string): Promise<void> {
+        await this.sessions.revoke(sessionId);
+    }
+
+    async logoutAll(userId: string): Promise<number> {
+        return this.sessions.revokeAll(userId);
+    }
+
+    async listSessions(userId: string, currentSessionId: string) {
+        const sessions = await this.sessions.listActive(userId);
+        return sessions.map((session) => ({ ...session, current: session.id === currentSessionId }));
+    }
+
+    async revokeSession(userId: string, sessionId: string): Promise<void> {
+        if (!(await this.sessions.revoke(sessionId, userId))) {
+            throw new NotFoundError('Session not found', 'SESSION_NOT_FOUND');
+        }
+    }
+
     async getLoginHistory(userId: string) {
         return this.db.loginHistory.findMany({
             where: { userId },

@@ -9,6 +9,7 @@ import {
     refreshTokenLimiter,
     resendVerificationLimiter,
     resetPasswordLimiter,
+    sessionLimiter,
     setup2FALimiter,
     signin2FALimiter,
     signinLimiter,
@@ -22,6 +23,7 @@ import {
     refreshTokenSchema,
     resendVerificationSchema,
     resetPasswordSchema,
+    sessionIdParamsSchema,
     signin2FASchema,
     signinSchema,
     signupSchema,
@@ -36,6 +38,17 @@ export const createAuthRouter = (controller: AuthController, authenticate: Reque
     router.post('/signin', signinLimiter, sanitizeRequestBody, validate(signinSchema), controller.signin);
     router.post('/refresh-token', refreshTokenLimiter, validate(refreshTokenSchema), controller.refreshAccessToken);
     router.get('/login-history', loginHistoryLimiter, authenticate, controller.getLoginHistory);
+
+    router.post('/logout', sessionLimiter, authenticate, controller.logout);
+    router.post('/logout-all', sessionLimiter, authenticate, controller.logoutAll);
+    router.get('/sessions', sessionLimiter, authenticate, controller.listSessions);
+    router.delete(
+        '/sessions/:sessionId',
+        sessionLimiter,
+        authenticate,
+        validate(sessionIdParamsSchema, 'params'),
+        controller.revokeSession
+    );
 
     router.post('/verify-email', verifyEmailLimiter, sanitizeRequestBody, validate(verifyEmailSchema), controller.verifyEmail);
     router.post(

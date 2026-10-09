@@ -35,6 +35,27 @@ export class AuthController {
         sendSuccess(res, 200, 'User signed in successfully', { user, accessToken, refreshToken });
     };
 
+    logout = async (req: Request, res: Response) => {
+        await this.authService.logout(currentUser(req).sessionId);
+        sendSuccess(res, 200, 'Signed out successfully');
+    };
+
+    logoutAll = async (req: Request, res: Response) => {
+        const count = await this.authService.logoutAll(currentUser(req).userId);
+        sendSuccess(res, 200, 'Signed out of all sessions', { revokedSessions: count });
+    };
+
+    listSessions = async (req: Request, res: Response) => {
+        const { userId, sessionId } = currentUser(req);
+        const sessions = await this.authService.listSessions(userId, sessionId);
+        sendSuccess(res, 200, 'Active sessions fetched successfully', { sessions });
+    };
+
+    revokeSession = async (req: Request, res: Response) => {
+        await this.authService.revokeSession(currentUser(req).userId, String(req.params.sessionId));
+        sendSuccess(res, 200, 'Session revoked successfully');
+    };
+
     getLoginHistory = async (req: Request, res: Response) => {
         const loginHistory = await this.authService.getLoginHistory(currentUser(req).userId);
         sendSuccess(res, 200, 'Login history fetched successfully', { loginHistory });
