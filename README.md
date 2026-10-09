@@ -219,6 +219,8 @@ The project follows a modular architecture for better organization and maintaina
 
 ## Features & Endpoints
 
+The paths below assume `BASE_URL=/api` and `API_VERSION=v1`. Protected routes expect an `Authorization: Bearer <accessToken>` header.
+
 ### Authentication
 
 #### User Registration & Verification
@@ -236,7 +238,7 @@ The project follows a modular architecture for better organization and maintaina
 - `POST /api/v1/auth/signin`: User login
   - Required fields: email, password
   - Returns JWT tokens and user info
-  - Handles 2FA if enabled
+  - If 2FA is enabled, responds with `status: "pending"` and `requiresOtp: true` instead of tokens; complete the login with `/2fa/signin`
 - `POST /api/v1/auth/refresh-token`: Refresh access token
   - Required fields: refreshToken
   - Returns new access token
@@ -276,13 +278,23 @@ The project follows a modular architecture for better organization and maintaina
 
 ### Protection Against Attacks
 
-- Rate limiting on all authentication endpoints
-- CORS protection with configurable allowed origins
+- Rate limiting on all authentication endpoints, with standard `RateLimit` / `RateLimit-Policy` response headers
+- CORS restricted to an allowlist of origins (`allowedOrigins` in `src/index.ts`)
 - Security headers (CSP, HSTS, XSS Protection, etc.)
 - Input sanitization to prevent XSS attacks
+- Request validation with Zod; controllers receive the parsed body, with unknown fields stripped
 
 ### Session Management
 
 - Short-lived JWT access tokens (20 minutes)
 - Longer-lived refresh tokens (7 days)
-- Login anomaly detection with IP, device tracking
+- Login history: every sign-in attempt is recorded with IP address, user agent and device type
+- Role-based access (`USER` / `ADMIN`) through the `authorizeAdmin` middleware
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
