@@ -21,6 +21,7 @@ import {
     verify2FASchema,
     verifyEmailSchema,
 } from '../modules/auth/auth.schemas.js';
+import { clientIdParamsSchema, createClientSchema } from '../modules/oidc/oidc.schemas.js';
 import { updateProfileSchema, userIdParamsSchema } from '../modules/users/users.schemas.js';
 import { paginationQuerySchema } from '../shared/validation/pagination.js';
 
@@ -95,6 +96,18 @@ const securityEvent = z
     .meta({ id: 'SecurityEvent' });
 
 const activityPage = z.object({ events: z.array(securityEvent), nextCursor: z.string().nullable() });
+
+const oauthClient = z
+    .object({
+        id: z.string().meta({ description: 'client_id' }),
+        name: z.string(),
+        redirectUris: z.array(z.string()),
+        scopes: z.array(z.string()),
+        firstParty: z.boolean(),
+        confidential: z.boolean(),
+        createdAt: z.iso.datetime(),
+    })
+    .meta({ id: 'OAuthClient' });
 
 const recoveryCodes = z.object({
     recoveryCodes: z.array(z.string()).meta({ description: 'Shown only once, store them somewhere safe' }),
@@ -387,6 +400,33 @@ const paths: ZodOpenApiPathsObject = {
             responses: { '200': success('Updated profile', z.object({ user })) },
         }),
     },
+    '/oauth-clients': {
+        get: operation({
+            ...authenticated,
+            tags: ['OpenID Connect'],
+            summary: 'List registered clients (ADMIN only)',
+            responses: { '200': success('Clients', z.object({ clients: z.array(oauthClient) })), '403': error('Not an admin') },
+        }),
+        post: operation({
+            ...authenticated,
+            tags: ['OpenID Connect'],
+            summary: 'Register a client (ADMIN only); the secret is returned once',
+            requestBody: json(createClientSchema),
+            responses: {
+                '201': success('Client registered', z.object({ client: oauthClient, clientSecret: z.string().optional() })),
+                '403': error('Not an admin'),
+            },
+        }),
+    },
+    '/oauth-clients/{clientId}': {
+        delete: operation({
+            ...authenticated,
+            tags: ['OpenID Connect'],
+            summary: 'Remove a client and everything issued to it (ADMIN only)',
+            requestParams: { path: clientIdParamsSchema },
+            responses: { '200': success('Removed'), '404': error('Client not found') },
+        }),
+    },
     '/users/me/activity': {
         get: operation({
             ...authenticated,
@@ -429,7 +469,9 @@ export const createOpenApiDocument = () =>
             title: `${env.APP_NAME} API`,
             version,
             description:
-                'Authentication API: passkeys, email verification, password reset, TOTP 2FA with recovery codes, rotating refresh tokens and session management.',
+                'Authentication API: passkeys, email verification, password reset, TOTP 2FA with recovery codes, rotating refresh tokens and session management. ' +
+                'It is also an OpenID Connect provider: its protocol endpoints (/oauth/authorize, /oauth/token, /oauth/userinfo, ' +
+                '/oauth/interactions/{id}) are described by /.well-known/openid-configuration and in the README.',
         },
         servers: [{ url: `${env.BASE_URL}/${env.API_VERSION}` }],
         components: {
