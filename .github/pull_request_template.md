@@ -1,27 +1,34 @@
-# Pull Request
+## Summary
 
-## Description
+<!-- What does this change and why? Link the issue it resolves. -->
 
-Brief description of the changes made in this PR.
+Closes #
 
-## Type of Change
+## Type of change
 
 - [ ] Bug fix
 - [ ] New feature
-- [ ] Documentation update
-- [ ] Code refactoring
-- [ ] Other (please describe):
+- [ ] Refactor (no behavior change)
+- [ ] Documentation
+- [ ] Tooling, CI or dependencies
+- [ ] Breaking change (API, configuration or database)
 
-## Related Issue
+## How was it tested?
 
-Fixes #(issue number)
+<!-- New or updated tests, and anything you checked by hand (requests, Docker, emails in Mailpit, ...). -->
 
 ## Checklist
 
-- [ ] My code follows the code style of this project
-- [ ] I have updated the documentation accordingly
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] All new and existing tests pass
+- [ ] `yarn lint`, `yarn typecheck`, `yarn build` and `yarn test` pass locally
+- [ ] Tests cover the new or changed behavior
+- [ ] Commits follow the [commit conventions](https://github.com/KhaledSaeed18/node-authentication-template/blob/main/CONTRIBUTING.md#commit-messages)
+- [ ] Docs updated where needed (README, `.env.example`, OpenAPI document in `src/docs/openapi.ts`, CHANGELOG for breaking changes)
+- [ ] Schema changes come with a migration (`yarn db:migrate --name <change>`)
 
-## Screenshots (if applicable)
+## Security
+
+- [ ] No secrets, tokens or personal data in code, tests, logs or responses
+- [ ] Responses don't reveal whether an account exists, where that matters
+- [ ] New endpoints are rate limited, validated, and authenticated when they need to be
+
+<!-- If this touches authentication, sessions, tokens or 2FA, describe the risks you considered. -->
