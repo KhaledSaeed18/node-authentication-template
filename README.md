@@ -52,7 +52,8 @@ A secure, modern authentication API for Node.js, built with TypeScript, Express 
 - Account lockout after repeated failed sign-ins, constant-time rejection of unknown emails
 - One-time codes stored as HMACs, single use, 5 attempts max, resend cooldown
 - No account enumeration on forgot-password, resend-verification, verify-email and reset-password
-- Email notifications for password and 2FA changes
+- Email notifications for password, 2FA and passkey changes, account lockouts, recovery code use and sign-ins from new devices
+- Account activity log: every security-relevant change is recorded and visible to the user (and to admins)
 - Rate limiting on every endpoint, optionally shared through Redis
 - Helmet security headers, strict CORS, request size limits, validated configuration
 
@@ -135,6 +136,7 @@ All settings are environment variables, validated at startup: the server refuses
 | `APP_NAME` | `Node Auth` | Shown in emails and authenticator apps |
 | `API_DOCS_ENABLED` | on outside production | Serve `/docs` |
 | `LOGIN_HISTORY_RETENTION_DAYS` | `90` | Used by the cleanup job |
+| `SECURITY_EVENT_RETENTION_DAYS` | `365` | How long account activity is kept |
 | `OUTBOX_WORKER_ENABLED` | `true` | Run the outbox worker inside the API process |
 | `OUTBOX_POLL_INTERVAL_MS` | `1000` | How often the worker looks for due jobs |
 | `MAIL_TRANSPORT` | `console` | `console`, `smtp` or `gmail` |
@@ -192,6 +194,8 @@ The full reference is served at `/docs` (OpenAPI document at `/docs/openapi.json
 | DELETE | `/auth/passkeys/:passkeyId` | yes | Remove a passkey |
 | GET | `/users/me` | yes | Current user |
 | PATCH | `/users/me` | yes | Update first/last name |
+| GET | `/users/me/activity` | yes | Account activity (`?limit=&cursor=`) |
+| GET | `/users/:userId/activity` | admin | A user's account activity |
 | GET | `/users` | admin | List users (`?limit=&cursor=`) |
 | GET | `/.well-known/jwks.json` | | Public keys for verifying access tokens |
 | GET | `/health` | | Liveness probe |
@@ -271,6 +275,7 @@ Errors carry a stable, machine-readable `code`:
 │   ├── lib                         # logger, Prisma client, Redis client
 │   ├── mail                        # mailer transports and email templates
 │   ├── modules
+│   │   ├── audit                   # account activity (security events)
 │   │   ├── auth                    # routes, controller, service, schemas, rate limits,
 │   │   │                           # sessions, tokens, TOTP, verification and recovery codes
 │   │   ├── users                   # profile and admin endpoints

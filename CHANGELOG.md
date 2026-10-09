@@ -8,6 +8,7 @@
 
 ### Added
 
+- Account activity log (`GET /users/me/activity`, and `GET /users/:userId/activity` for admins) recording security-relevant changes, plus email alerts for sign-ins from a new browser/OS, account lockouts, refresh token reuse and recovery code use. New setting `SECURITY_EVENT_RETENTION_DAYS`.
 - Security automation: CodeQL, a container build that is smoke tested and scanned with Trivy (with an SBOM), dependency review on pull requests. The runtime image no longer contains npm or yarn.
 - ES256 signing keys stored encrypted in the database, rotated automatically (`SIGNING_KEY_ROTATION_DAYS`), and published at `/.well-known/jwks.json` so other services can verify access tokens.
 
@@ -17,7 +18,7 @@
 
 ### Changed
 
-- Run `yarn db:deploy` for the new `OutboxMessage`, `Passkey`, `WebAuthnChallenge` and `SigningKey` tables.
+- Run `yarn db:deploy` for the new `OutboxMessage`, `Passkey`, `WebAuthnChallenge`, `SigningKey` and `SecurityEvent` tables.
 - `forgot-password` and `resend-verification` now enqueue a job instead of sending directly.
 
 ## 2.0.0
