@@ -1,21 +1,15 @@
-import speakeasy from 'speakeasy';
+import { generateSecret, generateURI, verify } from 'otplib';
 import QRCode from 'qrcode';
+
+const ISSUER = 'App name';
 
 // Generate a secret key for TOTP
 export const generateTOTPSecret = (email: string): { secret: string; otpauth_url: string } => {
-    const secretConfig = speakeasy.generateSecret({
-        name: `App name:${email}`,
-        issuer: 'App name'
-    });
-
-    // Handle the case when base32 or otpauth_url might be undefined
-    if (!secretConfig.base32 || !secretConfig.otpauth_url) {
-        throw new Error('Failed to generate TOTP secret');
-    }
+    const secret = generateSecret();
 
     return {
-        secret: secretConfig.base32,
-        otpauth_url: secretConfig.otpauth_url
+        secret,
+        otpauth_url: generateURI({ issuer: ISSUER, label: email, secret })
     };
 };
 
@@ -30,15 +24,11 @@ export const generateQRCode = async (otpauthUrl: string): Promise<string> => {
     }
 };
 
-// Verify TOTP token
-export const verifyTOTP = (token: string, secret: string): boolean => {
+// Verify TOTP token, accepting one 30s step of clock drift either way
+export const verifyTOTP = async (token: string, secret: string): Promise<boolean> => {
     try {
-        return speakeasy.totp.verify({
-            secret,
-            encoding: 'base32',
-            token,
-            window: 1
-        });
+        const result = await verify({ secret, token, epochTolerance: 30 });
+        return result.valid;
     } catch (error) {
         console.error('Error verifying TOTP token:', error);
         return false;

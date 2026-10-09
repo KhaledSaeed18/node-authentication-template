@@ -447,7 +447,7 @@ export class AuthService {
     }
 
     // Verify token with stored secret
-    const isValid = verifyTOTP(token, user.totpSecret);
+    const isValid = await verifyTOTP(token, user.totpSecret);
 
     if (!isValid) {
       throw new Error("Invalid 2FA token");
@@ -496,7 +496,7 @@ export class AuthService {
         throw new Error("2FA not properly configured");
       }
 
-      const isValid = verifyTOTP(token, user.totpSecret);
+      const isValid = await verifyTOTP(token, user.totpSecret);
       if (!isValid) {
         await this.recordLoginAttempt(user.id, req, false);
         throw new Error("Invalid 2FA token");
@@ -549,7 +549,7 @@ export class AuthService {
     }
 
     // Verify token before disabling
-    const isValid = verifyTOTP(token, user.totpSecret);
+    const isValid = await verifyTOTP(token, user.totpSecret);
     if (!isValid) {
       throw new Error("Invalid 2FA token");
     }
