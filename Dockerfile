@@ -34,4 +34,6 @@ COPY package.json prisma.config.ts ./
 COPY prisma ./prisma
 USER node
 EXPOSE 4000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
+    CMD wget -qO- "http://127.0.0.1:${PORT:-4000}/health" >/dev/null || exit 1
 CMD ["node", "dist/server.js"]

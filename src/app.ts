@@ -7,11 +7,13 @@ import type { PrismaClient } from './generated/prisma/client.js';
 import { prisma } from './lib/prisma.js';
 import { createMailer, type Mailer } from './mail/mailer.js';
 import { createAuthModule } from './modules/auth/index.js';
+import { createHealthRouter, type HealthState } from './modules/health/health.routes.js';
 import { errorHandler, notFoundHandler } from './shared/middlewares/error-handler.js';
 
 export interface AppDependencies {
     db: PrismaClient;
     mailer: Mailer;
+    health: HealthState;
 }
 
 // Builds the Express app without starting a server. Dependencies can be
@@ -20,6 +22,7 @@ export const createApp = (overrides: Partial<AppDependencies> = {}): Express => 
     const deps: AppDependencies = {
         db: overrides.db ?? prisma,
         mailer: overrides.mailer ?? createMailer(env),
+        health: overrides.health ?? { shuttingDown: false },
     };
 
     const app = express();
@@ -34,6 +37,9 @@ export const createApp = (overrides: Partial<AppDependencies> = {}): Express => 
             allowedHeaders: ['Content-Type', 'Authorization'],
         })
     );
+
+    // Probes are mounted before logging so they don't flood the logs
+    app.use(createHealthRouter(deps.db, deps.health));
 
     app.use(httpLogger);
 

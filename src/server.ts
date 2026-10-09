@@ -5,7 +5,8 @@ import { prisma } from './lib/prisma.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-const app = createApp();
+const health = { shuttingDown: false };
+const app = createApp({ health });
 
 const server = app.listen(env.PORT, (error) => {
     if (error) {
@@ -21,6 +22,7 @@ let shuttingDown = false;
 const shutdown = (signal: NodeJS.Signals) => {
     if (shuttingDown) return;
     shuttingDown = true;
+    health.shuttingDown = true;
     logger.info({ signal }, 'Shutting down');
 
     const forceExit = setTimeout(() => {
