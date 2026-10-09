@@ -138,3 +138,6 @@ dist
 .vscode
 # Prisma generated client
 src/generated/
+
+# macOS
+.DS_Store
