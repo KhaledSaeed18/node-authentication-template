@@ -16,6 +16,11 @@ const envSchema = z.object({
 
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
+    JWT_ISSUER: z.string().default('node-auth'),
+    JWT_AUDIENCE: z.string().default('node-auth-api'),
+    // Lifetimes like 15m, 12h, 7d
+    ACCESS_TOKEN_TTL: z.string().regex(/^\d+[smhd]$/, 'Use a number followed by s, m, h or d').default('15m'),
+    REFRESH_TOKEN_TTL: z.string().regex(/^\d+[smhd]$/, 'Use a number followed by s, m, h or d').default('7d'),
 
     // 32 random bytes, base64 encoded (`openssl rand -base64 32`). Used to derive keys
     // for hashing one-time codes and encrypting 2FA secrets. Changing it invalidates both.

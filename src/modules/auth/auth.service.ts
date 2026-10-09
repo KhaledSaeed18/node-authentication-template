@@ -1,4 +1,3 @@
-import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import type { PrismaClient, User } from '../../generated/prisma/client.js';
 import type { Mailer } from '../../mail/mailer.js';
@@ -20,7 +19,7 @@ import type {
     SignupInput,
     VerifyEmailInput,
 } from './auth.schemas.js';
-import { generateAccessToken, generateRefreshToken } from './tokens.js';
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from './tokens.js';
 import { generateQRCode, generateTOTPSecret, verifyTOTP } from './totp.js';
 import { CODE_TTL_MINUTES, VerificationCodeService } from './verification-code.service.js';
 
@@ -130,8 +129,8 @@ export class AuthService {
 
     private issueTokens(user: User) {
         return {
-            accessToken: generateAccessToken(user.id, user.role),
-            refreshToken: generateRefreshToken(user.id, user.role),
+            accessToken: signAccessToken({ userId: user.id, role: user.role }),
+            refreshToken: signRefreshToken({ userId: user.id, role: user.role }),
         };
     }
 
@@ -197,15 +196,7 @@ export class AuthService {
     }
 
     refreshAccessToken(refreshToken: string): string {
-        try {
-            const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as jwt.JwtPayload;
-            return generateAccessToken(decoded.userId, decoded.role);
-        } catch (error) {
-            if (error instanceof jwt.TokenExpiredError) {
-                throw new UnauthorizedError('Refresh token expired', 'TOKEN_EXPIRED');
-            }
-            throw new UnauthorizedError('Invalid refresh token', 'INVALID_TOKEN');
-        }
+        return signAccessToken(verifyRefreshToken(refreshToken));
     }
 
     // Unknown email, already verified and wrong code all get the same answer,

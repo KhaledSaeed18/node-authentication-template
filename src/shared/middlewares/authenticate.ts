@@ -1,10 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
-import jwt, { type JwtPayload } from 'jsonwebtoken';
-import { env } from '../../config/env.js';
 import type { Role } from '../../generated/prisma/enums.js';
+import { type TokenClaims, verifyAccessToken } from '../../modules/auth/tokens.js';
 import { ForbiddenError, UnauthorizedError } from '../errors/app-error.js';
 
-export type AuthTokenPayload = JwtPayload & { userId: string; role: Role };
+export type AuthTokenPayload = TokenClaims;
 
 declare module 'express' {
     interface Request {
@@ -21,13 +20,10 @@ export const authenticate = (req: Request, _res: Response, next: NextFunction) =
     }
 
     try {
-        req.user = jwt.verify(token, env.JWT_SECRET) as AuthTokenPayload;
+        req.user = verifyAccessToken(token);
         next();
     } catch (error) {
-        if (error instanceof jwt.TokenExpiredError) {
-            return next(new UnauthorizedError('Access token has expired', 'TOKEN_EXPIRED'));
-        }
-        next(new UnauthorizedError('Invalid access token', 'INVALID_TOKEN'));
+        next(error);
     }
 };
 
