@@ -1,6 +1,6 @@
 # Official Node image; use the same registry as the CI service containers.
 # Keep the runtime major aligned with .nvmrc and @types/node.
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 WORKDIR /app
 
 # All dependencies; postinstall generates the Prisma client
