@@ -513,6 +513,13 @@
   dependencies:
     "@opentelemetry/semantic-conventions" "^1.29.0"
 
+"@opentelemetry/core@3.1.0":
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/@opentelemetry/core/-/core-3.1.0.tgz#f1293092765dbe6115bb82139aec40c89d5702f0"
+  integrity sha512-TS/6jqU5gilzjvjGnsTEKVFF/0MMAtBc2psxaX39IGCBYLat83/iHxYBWn+O6WB+pnyB0SwiH46rvTEp/OeYxA==
+  dependencies:
+    "@opentelemetry/semantic-conventions" "^1.29.0"
+
 "@opentelemetry/exporter-logs-otlp-grpc@0.300.0":
   version "0.300.0"
   resolved "https://registry.yarnpkg.com/@opentelemetry/exporter-logs-otlp-grpc/-/exporter-logs-otlp-grpc-0.300.0.tgz#761b51dca9e1a6b4df7b0a97021263973819de1c"
@@ -1083,6 +1090,14 @@
     "@opentelemetry/core" "3.0.0"
     "@opentelemetry/semantic-conventions" "^1.29.0"
 
+"@opentelemetry/resources@3.1.0":
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/@opentelemetry/resources/-/resources-3.1.0.tgz#31fd578349f5b6427ee05cb0f1ee05c2202d68a4"
+  integrity sha512-51dObapLj5PFRoQ+V4G4pZuQhzgFw/fC4m6F6Qa7rhjkrPyldroR34uOhL1vQqbpR02WdRh0JmsxyNlh2YNNvg==
+  dependencies:
+    "@opentelemetry/core" "3.1.0"
+    "@opentelemetry/semantic-conventions" "^1.29.0"
+
 "@opentelemetry/sdk-logs@3.0.0":
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/@opentelemetry/sdk-logs/-/sdk-logs-3.0.0.tgz#528639a82f5669be4e1d931f51668f88e7f55b75"
@@ -1100,13 +1115,13 @@
     "@opentelemetry/core" "3.0.0"
     "@opentelemetry/resources" "3.0.0"
 
-"@opentelemetry/sdk-metrics@^2.12.0":
-  version "2.12.0"
-  resolved "https://registry.yarnpkg.com/@opentelemetry/sdk-metrics/-/sdk-metrics-2.12.0.tgz#8117b1434dcae34a1fd98b5befdea9b19d0fac20"
-  integrity sha512-mVMaEHwCUJuY3S4Esn+nT0yQA3qCEGh+SOPJsXygU0Gl453WcsDNjtEa8EfdewMwoLyr1tlofB4fXytVpiXuow==
+"@opentelemetry/sdk-metrics@^3.0.0":
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/@opentelemetry/sdk-metrics/-/sdk-metrics-3.1.0.tgz#0fd7a987dc0420ef17e3cab0a483414ee2f96bc3"
+  integrity sha512-eU7MfYDxGPAJhA8bKYTkAFpmKrKMbgyKZQoBCKu+L9rJ3SKK3wfN3Vuv1/Kx90nLMwQW0931Zf04bO9LKYbcFQ==
   dependencies:
-    "@opentelemetry/core" "2.12.0"
-    "@opentelemetry/resources" "2.12.0"
+    "@opentelemetry/core" "3.1.0"
+    "@opentelemetry/resources" "3.1.0"
 
 "@opentelemetry/sdk-node@^0.300.0":
   version "0.300.0"
